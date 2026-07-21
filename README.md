@@ -96,6 +96,7 @@ backup is copied to your clipboard instead.
 | **Reroll** | Winner passed. Redraws, excluding them from this milestone only |
 | **Undo draw** | Clears the winner *and* the passes, so the milestone starts fresh |
 | **Put back** | Returns someone who passed to this milestone's wheel |
+| **Tick all / Untick all** | Bulk-ticks the roster for this milestone. Respects the filter |
 | **Edit** | Rename, re-tier, add or delete milestones; rename the grand prize |
 | **Theme** | Cycles Auto → Light → Dark. Auto follows your device |
 | **Fairness check** | 10,000 test draws against the current wheel |
