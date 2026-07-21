@@ -704,6 +704,8 @@
   };
 
   let editingLadder = false;
+  /* Survive the full re-renders that every tick triggers. */
+  let draftNames = '', rosterFilter = '', rosterScroll = 0, ladderScroll = 0, refocusName = null;
   const mvpRow = () => ({ id: 'mvp', label: state.mvpLabel || 'MVP', tier: 'mvp' });
   const allRows = () => state.milestones.concat([mvpRow()]);
 
@@ -711,10 +713,14 @@
   const msById = id => state.milestones.find(m => m.id === id);
   const isMvp = () => state.sel === 'mvp';
 
+  /* Split on line breaks and semicolons only. Commas used to split too,
+     which quietly turned "Doe, Jane" into two entrants each holding their
+     own odds. A name that must be reformatted is a small annoyance; a
+     phantom entrant on the wheel is a rigged draw. */
   function parseNames(raw) {
     const seen = new Map();
-    raw.split(/[\n,]/).forEach(part => {
-      const n = part.trim().replace(/\s+/g, ' ');
+    raw.split(/[\n;]/).forEach(part => {
+      const n = part.trim().replace(/\s+/g, ' ').replace(/,$/, '').trim();
       if (n && !seen.has(key(n))) seen.set(key(n), n);
     });
     return [...seen.values()];
@@ -748,19 +754,31 @@
     return winnersList().filter(w => key(w.winner) === key(name)).length;
   }
 
-  /* Names on the wheel for the current selection. */
-  function pool() {
-    const sel = state.sel;
-    const declined = (state.results[sel] && state.results[sel].declined) || [];
-    const dk = new Set(declined.map(key));
-    let names = (isMvp() ? mvpEligible() : participants(sel)).map(r => r.name);
-    names = names.filter(n => !dk.has(key(n)));
-    if (state.skipScope[tierOf()]) {
-      const won = new Set(winnersList().filter(w => w.id !== sel).map(w => key(w.winner)));
-      names = names.filter(n => !won.has(key(n)));
+  /* The single account of who is on a wheel and who was removed from it.
+     Every surface that draws, counts, or explains the wheel reads this one
+     function \u2014 previously the same rule was written out in three places and
+     they drifted, which is how the UI kept claiming names were available
+     when they had been filtered out. Returns the survivors AND the reasons. */
+  function poolBreakdown(sel) {
+    sel = sel || state.sel;
+    const grand = sel === 'mvp';
+    const base = (grand ? mvpEligible() : participants(sel)).map(r => r.name);
+
+    const dk = new Set(((state.results[sel] || {}).declined || []).map(key));
+    const passed = base.filter(n => dk.has(key(n)));
+    let rest = base.filter(n => !dk.has(key(n)));
+
+    let held = [], wonWhere = new Map();
+    const tier = grand ? 'mvp' : ((msById(sel) || {}).tier || 'minor');
+    if (state.skipScope[tier]) {
+      wonWhere = new Map(winnersList().filter(w => w.id !== sel).map(w => [key(w.winner), w.id]));
+      held = rest.filter(n => wonWhere.has(key(n)));
+      rest = rest.filter(n => !wonWhere.has(key(n)));
     }
-    return names;
+    return { base, passed, held, wonWhere, names: rest };
   }
+
+  const pool = () => poolBreakdown().names;
 
   const tierOf = () => isMvp() ? 'mvp' : (msById(state.sel) || {}).tier || 'minor';
   const cssVarFor = t => t === 'major' ? '--major' : t === 'mvp' ? '--mvp' : '--minor';
@@ -1108,7 +1126,7 @@
 
     const remaining = pool().filter(n => key(n) !== key(cur.winner));
     if (!remaining.length) {
-      const total = (isMvp() ? mvpEligible() : participants(state.sel)).length;
+      const total = poolBreakdown().base.length;
       const ok = await ask('Nobody left to reroll to',
         'Everyone else on ' + selLabel() + ' has already passed, so a reroll would leave the wheel empty. ' +
         'Undoing the draw instead clears the passes and puts all ' + total + ' back on.',
@@ -1130,6 +1148,8 @@
     const cur = state.results[state.sel];
     if (!cur) return;
     cur.declined = (cur.declined || []).filter(d => key(d) !== key(name));
+    // An empty shell would keep the milestone permanently 'reached'.
+    if (!cur.winner && !cur.declined.length) delete state.results[state.sel];
     save();
     render();
     $('live').textContent = name + ' is back on ' + selLabel();
@@ -1214,6 +1234,7 @@
   /* ---------- dialogs / clipboard (sandbox safe) ---------- */
   let askResolve = null;
   function ask(title, body, okLabel) {
+    if (askResolve) settleAsk(false);   // never leave an earlier caller hanging
     $('askTitle').textContent = title;
     $('askBody').textContent = body;
     $('askOk').textContent = okLabel;
@@ -1346,6 +1367,7 @@
   function renderLadder() {
     if (editingLadder) return renderLadderEditor();
     const box = $('ladder');
+    ladderScroll = box.scrollTop || ladderScroll;
     box.innerHTML = '';
     const got = reached();
     $('ladderCount').textContent = got.length + ' of ' + state.milestones.length + ' reached';
@@ -1374,9 +1396,17 @@
       else st.textContent = m.id === 'mvp' ? 'derived' : 'not reached';
 
       btn.append(lbl, chip, st);
-      btn.addEventListener('click', () => { if (spinning) return; state.sel = m.id; save(); render(); });
+      btn.addEventListener('click', () => {
+        if (spinning || state.sel === m.id) return;
+        state.sel = m.id;
+        rosterFilter = '';          // a new milestone is a fresh search
+        rosterScroll = 0;
+        save(); render();
+      });
       box.appendChild(btn);
     });
+    box.scrollTop = ladderScroll;
+    box.addEventListener('scroll', () => { ladderScroll = box.scrollTop; });
   }
 
   /* Who stepped aside on this milestone, and a way back on. Without this the
@@ -1397,6 +1427,7 @@
     all.className = 'btn'; all.type = 'button'; all.textContent = 'Put all back';
     all.addEventListener('click', () => {
       cur.declined = [];
+      if (!cur.winner) delete state.results[state.sel];
       save(); render();
       $('live').textContent = 'Everyone is back on ' + selLabel();
     });
@@ -1459,13 +1490,12 @@
       /* The skip rule applies to this wheel too, so someone can qualify on
          participation and still not be drawable. Say which, rather than
          printing ELIGIBLE beside a name that cannot actually be picked. */
+      const bdMvp = poolBreakdown('mvp');
       const heldBy = new Map();
-      if (state.skipScope.mvp) {
-        winnersList().filter(w => w.id !== 'mvp').forEach(w => {
-          const k = key(w.winner);
-          if (!heldBy.has(k)) heldBy.set(k, (msById(w.id) || {}).label || w.id);
-        });
-      }
+      bdMvp.held.forEach(n => {
+        const id = bdMvp.wonWhere.get(key(n));
+        heldBy.set(key(n), (msById(id) || {}).label || id);
+      });
 
       const list = document.createElement('div');
       list.className = 'elig';
@@ -1510,6 +1540,8 @@
     const ta = document.createElement('textarea');
     ta.placeholder = 'Paste or type names, one per line';
     ta.spellcheck = false;
+    ta.value = draftNames;
+    ta.addEventListener('input', () => { draftNames = ta.value; });
     field.append(span, ta);
 
     const addBtn = document.createElement('button');
@@ -1520,7 +1552,7 @@
       const names = parseNames(ta.value);
       if (!names.length) return;
       names.forEach(n => { addMember(n).in[m.id] = true; });
-      ta.value = '';
+      ta.value = ''; draftNames = '';
       save(); render();
       $('live').textContent = names.length + ' added to ' + m.label;
     };
@@ -1548,6 +1580,7 @@
     filter.type = 'search';
     filter.placeholder = 'Filter roster';
     filter.setAttribute('aria-label', 'Filter roster');
+    filter.value = rosterFilter;
     body.appendChild(filter);
 
     const bar = document.createElement('div');
@@ -1612,6 +1645,7 @@
       rows.forEach(r => {
         const wrap = document.createElement('div');
         wrap.className = 'r-row';
+        wrap.dataset.name = key(r.name);
 
         const t = document.createElement('button');
         t.type = 'button'; t.className = 'r-toggle';
@@ -1623,6 +1657,7 @@
         t.append(box, nm);
         t.addEventListener('click', () => {
           if (spinning) return;
+          refocusName = key(r.name);
           if (r.in[m.id]) delete r.in[m.id]; else r.in[m.id] = true;
           save(); render();
         });
@@ -1653,8 +1688,15 @@
         list.appendChild(wrap);
       });
     };
-    filter.addEventListener('input', paint);
+    filter.addEventListener('input', () => { rosterFilter = filter.value; paint(); });
     paint();
+    list.scrollTop = rosterScroll;
+    list.addEventListener('scroll', () => { rosterScroll = list.scrollTop; });
+    if (refocusName) {
+      const back = list.querySelector('[data-name="' + refocusName + '"] .r-toggle');
+      if (back) back.focus();
+      refocusName = null;
+    }
 
     const pb = passedBlock();
     if (pb) body.appendChild(pb);
@@ -1688,11 +1730,27 @@
     $('shuffleBtn').disabled = names.length < 2 || spinning;
     $('stageEmpty').hidden = names.length > 0 || settled;
 
+    /* An empty wheel has several very different causes. Saying "add names"
+       when the names are there but filtered out is the mistake this app has
+       made repeatedly \u2014 name the actual reason. */
     if (!names.length && !settled) {
-      if (isMvp()) {
+      const bd = poolBreakdown();
+      if (bd.passed.length && !bd.held.length && !bd.base.length - bd.passed.length) {
+        $('emptyTitle').textContent = 'Everyone has passed';
+        $('emptyWhy').textContent = bd.passed.join(', ') + ' all declined. Put someone back below, or undo the draw to start ' + selLabel() + ' fresh.';
+      } else if (bd.held.length && bd.held.length + bd.passed.length >= bd.base.length) {
+        $('emptyTitle').textContent = 'Everyone here has already won';
+        $('emptyWhy').textContent = bd.held.length + ' of the ' + bd.base.length +
+          ' verified for ' + selLabel() + ' are held back by the skip rule. Turn it off in Rules to put them on the wheel.';
+      } else if (bd.base.length) {
+        $('emptyTitle').textContent = 'Nobody left on the wheel';
+        $('emptyWhy').textContent = bd.base.length + ' verified, but ' +
+          [bd.passed.length ? bd.passed.length + ' passed' : '', bd.held.length ? bd.held.length + ' already won' : '']
+            .filter(Boolean).join(' and ') + '.';
+      } else if (isMvp()) {
         $('emptyTitle').textContent = 'No one qualifies yet';
         $('emptyWhy').textContent = reached().length
-          ? (state.mvpLabel || 'MVP') + ' needs every one of the ' + reached().length + ' milestones reached so far. Nobody has the full set.'
+          ? selLabel() + ' needs every one of the ' + reached().length + ' milestones reached so far. Nobody has the full set.'
           : 'Add participants to milestones first.';
       } else {
         $('emptyTitle').textContent = 'Nobody on the wheel';
@@ -1700,21 +1758,11 @@
       }
     }
 
-    const declined = (res && res.declined) || [];
+    const bd = poolBreakdown();
     const bits = [];
     if (names.length) bits.push(names.length + ' on the wheel', '1 in ' + names.length + ' odds');
-    if (declined.length) bits.push(declined.length + ' passed');
-
-    // Account for anyone the skip rule is holding back, so the count on the
-    // wheel never differs from the participant list without explanation.
-    if (state.skipScope[tierOf()]) {
-      const won = new Set(winnersList().filter(w => w.id !== state.sel).map(w => key(w.winner)));
-      const held = (isMvp() ? mvpEligible() : participants(state.sel))
-        .map(r => r.name)
-        .filter(n => !declined.some(d => key(d) === key(n)))
-        .filter(n => won.has(key(n))).length;
-      if (held) bits.push(held + ' held (already won)');
-    }
+    if (bd.passed.length) bits.push(bd.passed.length + ' passed');
+    if (bd.held.length) bits.push(bd.held.length + ' held (already won)');
     $('stageMeta').textContent = settled ? '' : bits.join('  ' + DOT + '  ');
 
     $('fairOut').innerHTML = '';
