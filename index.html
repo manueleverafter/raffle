@@ -1,0 +1,1662 @@
+<title>Draw &#8212; Milestone Raffle</title>
+<style>
+  :root {
+    --paper:   #EEF1F3;
+    --panel:   #FFFFFF;
+    --sunk:    #E4E9ED;
+    --line:    #D2DBE1;
+    --text:    #16222B;
+    --muted:   #61727E;
+    --faint:   #8C9BA6;
+
+    --minor:   #2E6A96;
+    --major:   #C13B2F;
+    --mvp:     #9A6B12;
+    --ok:      #2E7D52;
+
+    --tier:    var(--minor);
+    --shadow:  0 1px 2px rgba(16,34,46,.06), 0 8px 24px rgba(16,34,46,.07);
+
+    --display: 'Archivo Black', 'Arial Black', 'Helvetica Neue', system-ui, sans-serif;
+    --body:    system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --mono:    ui-monospace, 'Cascadia Mono', 'SF Mono', Consolas, 'Liberation Mono', monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #0D161D; --panel: #14212B; --sunk: #0F1B23; --line: #21323F;
+      --text:  #E6EDF2; --muted: #8CA0AE; --faint: #64798A;
+      --minor: #63A5D4; --major: #F0685A; --mvp: #E0AC49; --ok: #4FBF85;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0D161D; --panel: #14212B; --sunk: #0F1B23; --line: #21323F;
+    --text:  #E6EDF2; --muted: #8CA0AE; --faint: #64798A;
+    --minor: #63A5D4; --major: #F0685A; --mvp: #E0AC49; --ok: #4FBF85;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+  }
+  :root[data-theme="light"] {
+    --paper: #EEF1F3; --panel: #FFFFFF; --sunk: #E4E9ED; --line: #D2DBE1;
+    --text:  #16222B; --muted: #61727E; --faint: #8C9BA6;
+    --minor: #2E6A96; --major: #C13B2F; --mvp: #9A6B12; --ok: #2E7D52;
+    --shadow: 0 1px 2px rgba(16,34,46,.06), 0 8px 24px rgba(16,34,46,.07);
+  }
+
+  * { box-sizing: border-box; }
+  /* `hidden` only carries UA weight; any class setting display would beat it. */
+  [hidden] { display: none !important; }
+
+  .app {
+    font-family: var(--body);
+    color: var(--text);
+    background: var(--paper);
+    min-height: 100vh;
+    padding: 20px;
+    display: flex; flex-direction: column; gap: 18px;
+  }
+
+  /* ---------- masthead ---------- */
+  .masthead {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding-bottom: 13px; border-bottom: 1px solid var(--line);
+  }
+  .wordmark {
+    font-family: var(--display); font-weight: 900; font-size: 21px;
+    letter-spacing: .14em; text-transform: uppercase; margin: 0;
+  }
+  .wordmark span { color: var(--tier); transition: color .3s; }
+  #eventName {
+    font-family: var(--body); font-size: 13.5px; font-weight: 550;
+    color: var(--text); background: transparent;
+    border: 1px solid transparent; border-radius: 3px;
+    padding: 5px 8px; min-width: 190px;
+  }
+  #eventName:hover { border-color: var(--line); }
+  #eventName:focus-visible { outline: 2px solid var(--tier); outline-offset: 1px; background: var(--panel); }
+  .masthead-end { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+  .payout {
+    font-family: var(--mono); font-size: 11.5px; color: var(--faint);
+    letter-spacing: .04em; font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------- shell ---------- */
+  .shell {
+    display: grid; grid-template-columns: minmax(0,1fr) 420px;
+    gap: 22px; align-items: start; flex: 1;
+  }
+  @media (max-width: 940px) {
+    .shell { grid-template-columns: minmax(0,1fr); }
+    .app { padding: 14px; }
+  }
+
+  /* ---------- stage ---------- */
+  .stage { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 4px 0; }
+  .now-drawing { display: flex; align-items: center; gap: 11px; flex-wrap: wrap; justify-content: center; }
+  .now-label {
+    font-family: var(--display); font-size: 26px; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--tier);
+  }
+  .now-meta {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--faint);
+  }
+
+  .wheel-frame { position: relative; width: 100%; max-width: 500px; aspect-ratio: 1; }
+  canvas#wheel { width: 100%; height: 100%; display: block; }
+  .pointer {
+    position: absolute; top: -3px; left: 50%; transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left: 13px solid transparent; border-right: 13px solid transparent;
+    border-top: 26px solid var(--tier);
+    filter: drop-shadow(0 2px 3px rgba(0,0,0,.3));
+    transition: border-top-color .3s; z-index: 3;
+  }
+  .pointer::after {
+    content: ''; position: absolute; top: -12px; left: -6px;
+    width: 12px; height: 12px; border-radius: 50%; background: var(--tier);
+  }
+  .stage-empty {
+    position: absolute; inset: 0; display: grid; place-content: center;
+    text-align: center; gap: 8px; padding: 40px;
+    pointer-events: none; user-select: none;
+  }
+  .stage-empty strong {
+    font-family: var(--display); font-size: 14px;
+    letter-spacing: .08em; text-transform: uppercase;
+  }
+  .stage-empty span { font-size: 13px; color: var(--muted); line-height: 1.5; max-width: 26ch; }
+
+  .stage-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .spin-btn {
+    font-family: var(--display); font-weight: 900; font-size: 18px;
+    letter-spacing: .16em; text-transform: uppercase; color: #fff;
+    background: var(--tier); border: none; border-radius: 3px;
+    padding: 16px 54px; cursor: pointer;
+    transition: transform .12s, filter .2s, background .3s;
+    box-shadow: var(--shadow);
+  }
+  .spin-btn:hover:not(:disabled) { filter: brightness(1.1); }
+  .spin-btn:active:not(:disabled) { transform: translateY(2px); }
+  .spin-btn:disabled { opacity: .32; cursor: not-allowed; }
+  .stage-meta { font-family: var(--mono); font-size: 11.5px; color: var(--faint); letter-spacing: .04em; text-align: center; }
+
+  /* result banner under the wheel once a milestone is settled */
+  .settled {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center;
+    background: var(--panel); border: 1px solid var(--line);
+    border-left: 4px solid var(--ok); border-radius: 3px;
+    padding: 12px 16px; box-shadow: var(--shadow);
+  }
+  .settled-name { font-family: var(--display); font-size: 17px; letter-spacing: .05em; text-transform: uppercase; }
+  .settled-tag { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ok); }
+
+  /* ---------- rail ---------- */
+  .rail { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 4px; box-shadow: var(--shadow); overflow: hidden;
+  }
+  .card-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  .card-head h2 { font-family: var(--display); font-size: 11.5px; letter-spacing: .14em; text-transform: uppercase; margin: 0; }
+  .count { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-left: auto; font-variant-numeric: tabular-nums; }
+  .card-body { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+
+  /* ---------- milestone ladder ---------- */
+  .ladder { max-height: 340px; overflow-y: auto; display: flex; flex-direction: column; }
+  .ms {
+    display: grid; grid-template-columns: 62px 52px 1fr; align-items: center; gap: 9px;
+    padding: 9px 14px; border: none; border-left: 3px solid transparent;
+    background: transparent; width: 100%; text-align: left; cursor: pointer;
+    font-family: var(--body); color: var(--text);
+    transition: background .14s;
+  }
+  .ms:hover { background: var(--sunk); }
+  .ms[aria-current="true"] { background: var(--sunk); border-left-color: var(--mc); }
+  .ms + .ms { border-top: 1px solid var(--line); }
+  .ms-label { font-family: var(--display); font-size: 13px; letter-spacing: .04em; }
+  .ms-prize {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--mc);
+    border: 1px solid currentColor; border-radius: 2px;
+    padding: 2px 0; text-align: center;
+  }
+  .ms-state { font-family: var(--mono); font-size: 10.5px; text-align: right; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ms-state.won { color: var(--ok); }
+  .ms-state.ready { color: var(--mc); }
+
+  /* ladder edit mode */
+  .ms-edit-body { padding: 14px; display: flex; flex-direction: column; gap: 7px; }
+  .ms-edit { display: grid; grid-template-columns: 1fr 92px 28px; gap: 6px; align-items: center; }
+  .ms-edit input, .ms-edit select {
+    font-family: var(--mono); font-size: 12px; color: var(--text);
+    background: var(--sunk); border: 1px solid var(--line);
+    border-radius: 3px; padding: 6px 7px; width: 100%;
+  }
+  .ms-edit select { font-family: var(--body); }
+  .ms-edit input[type="number"] { font-variant-numeric: tabular-nums; }
+  .mvp-edit { grid-template-columns: 1fr 92px; border-top: 1px solid var(--line); padding-top: 10px; margin-top: 4px; }
+  .ms-edit-fixed {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--mvp);
+  }
+  #editMsBtn { padding: 5px 11px; font-size: 11.5px; }
+  #editMsBtn[aria-pressed="true"] { background: var(--tier); border-color: var(--tier); color: #fff; }
+
+  /* ---------- participants ---------- */
+  .roster { display: flex; flex-direction: column; gap: 3px; max-height: 300px; overflow-y: auto; }
+  .r-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 8px; }
+  .r-toggle {
+    display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0;
+    background: transparent; border: 1px solid transparent; border-radius: 3px;
+    padding: 6px 8px; cursor: pointer; font-family: var(--body);
+    color: var(--text); text-align: left; width: 100%;
+  }
+  .r-toggle:hover { background: var(--sunk); }
+  .r-box {
+    flex: none; width: 17px; height: 17px; border-radius: 3px;
+    border: 1.5px solid var(--faint); display: grid; place-items: center;
+    font-size: 11px; line-height: 1; color: transparent;
+  }
+  .r-toggle[aria-pressed="true"] .r-box { background: var(--tier); border-color: var(--tier); color: #fff; }
+  .r-name { font-family: var(--mono); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .r-toggle[aria-pressed="false"] .r-name { color: var(--muted); }
+  .r-tally { font-family: var(--mono); font-size: 10px; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .r-tally.full { color: var(--mvp); }
+
+  /* ---------- MVP panel ---------- */
+  .elig { display: flex; flex-direction: column; gap: 3px; max-height: 300px; overflow-y: auto; }
+  .elig-row {
+    display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px;
+    padding: 7px 9px; border-radius: 3px; background: var(--sunk); font-size: 13px;
+  }
+  .elig-row.out { background: transparent; }
+  .elig-name { font-family: var(--mono); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .elig-row.out .elig-name { color: var(--faint); }
+  .elig-score { font-family: var(--mono); font-size: 10.5px; font-variant-numeric: tabular-nums; color: var(--faint); }
+  .elig-row:not(.out) .elig-score { color: var(--mvp); }
+
+  /* passed-on-this-milestone list */
+  .passed {
+    display: flex; flex-direction: column; gap: 6px;
+    border-top: 1px solid var(--line); padding-top: 12px; margin-top: 2px;
+  }
+  .passed-head { display: flex; align-items: center; gap: 10px; }
+  .passed-head span {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--major);
+  }
+  .passed-head .btn { margin-left: auto; padding: 5px 10px; font-size: 11.5px; }
+  .passed-row {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--sunk); border-radius: 3px; padding: 6px 8px 6px 10px;
+    border-left: 3px solid var(--major);
+  }
+  .passed-name {
+    font-family: var(--mono); font-size: 12.5px; color: var(--muted);
+    text-decoration: line-through; flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .passed-row .btn { padding: 4px 10px; font-size: 11.5px; }
+  .settled-passed { font-family: var(--mono); font-size: 10.5px; color: var(--major); letter-spacing: .04em; }
+
+  .banner {
+    display: block; font-size: 12.5px; line-height: 1.5; color: var(--muted);
+    background: var(--sunk); border-left: 3px solid var(--tier);
+    padding: 10px 12px; border-radius: 0 3px 3px 0;
+  }
+  .banner b { color: var(--text); font-weight: 600; }
+
+  /* ---------- inputs / buttons ---------- */
+  label.field { display: flex; flex-direction: column; gap: 6px; }
+  label.field > span { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  textarea, input[type="text"], input[type="search"] {
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.6; color: var(--text);
+    background: var(--sunk); border: 1px solid var(--line); border-radius: 3px;
+    padding: 9px 10px; width: 100%;
+  }
+  textarea { resize: vertical; min-height: 74px; }
+  textarea:focus-visible, input:focus-visible { outline: 2px solid var(--tier); outline-offset: 1px; }
+  .hint { font-size: 12px; color: var(--faint); line-height: 1.5; margin: 0; }
+
+  .btn {
+    font-family: var(--body); font-size: 12.5px; font-weight: 550; color: var(--text);
+    background: var(--panel); border: 1px solid var(--line); border-radius: 3px;
+    padding: 8px 13px; cursor: pointer; transition: background .15s, border-color .15s;
+  }
+  .btn:hover:not(:disabled) { background: var(--sunk); border-color: var(--faint); }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .btn-danger:hover:not(:disabled) { color: var(--major); border-color: var(--major); background: var(--panel); }
+  .btn-accent { background: var(--tier); border-color: var(--tier); color: #fff; }
+  .btn-accent:hover:not(:disabled) { filter: brightness(1.1); background: var(--tier); border-color: var(--tier); }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .icon-btn {
+    font-family: var(--body); font-size: 15px; line-height: 1;
+    width: 28px; height: 28px; display: grid; place-items: center;
+    color: var(--faint); background: transparent; border: 1px solid transparent;
+    border-radius: 3px; cursor: pointer; transition: color .15s, background .15s;
+  }
+  .icon-btn:hover { color: var(--major); background: var(--sunk); }
+  :where(button, textarea, input, [tabindex]):focus-visible { outline: 2px solid var(--tier); outline-offset: 2px; }
+
+  .toggle { display: flex; align-items: flex-start; gap: 11px; cursor: pointer; }
+  .toggle input { position: absolute; opacity: 0; pointer-events: none; }
+  .track {
+    flex: none; width: 38px; height: 22px; border-radius: 11px;
+    background: var(--sunk); border: 1px solid var(--line); position: relative;
+    transition: background .2s, border-color .2s; margin-top: 1px;
+  }
+  .track::after {
+    content: ''; position: absolute; top: 2px; left: 2px;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--faint); transition: transform .2s, background .2s;
+  }
+  .toggle input:checked + .track { background: var(--tier); border-color: var(--tier); }
+  .toggle input:checked + .track::after { transform: translateX(16px); background: #fff; }
+  .toggle input:focus-visible + .track { outline: 2px solid var(--tier); outline-offset: 2px; }
+  .toggle-copy { display: flex; flex-direction: column; gap: 3px; }
+  .toggle-copy strong { font-size: 13px; font-weight: 600; }
+  .toggle-copy small { font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+
+  /* ---------- results ---------- */
+  .stubs { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; padding: 2px; }
+  .stub {
+    position: relative; display: grid; grid-template-columns: auto 1fr auto;
+    align-items: center; gap: 11px; padding: 10px 8px 10px 19px;
+    background: var(--sunk); border: 1px solid var(--line); border-radius: 3px;
+    border-left: 4px solid var(--sc);
+  }
+  .stub::before {
+    content: ''; position: absolute; left: 10px; top: 7px; bottom: 7px; width: 1px;
+    background: repeating-linear-gradient(to bottom, var(--faint) 0 2px, transparent 2px 6px);
+    opacity: .5;
+  }
+  .serial { font-family: var(--mono); font-size: 10px; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .stub-body { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .stub-name { font-family: var(--display); font-size: 13.5px; letter-spacing: .04em; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .stub-tier { font-family: var(--mono); font-size: 10px; letter-spacing: .09em; text-transform: uppercase; color: var(--sc); }
+  .warn { font-family: var(--mono); font-size: 10px; color: var(--major); letter-spacing: .04em; }
+  .empty-note { font-size: 12.5px; color: var(--faint); text-align: center; padding: 20px 10px; line-height: 1.5; }
+
+  /* ---------- fairness ---------- */
+  .fair { display: flex; flex-direction: column; gap: 5px; }
+  .fair-row { display: grid; grid-template-columns: 80px 1fr 52px; align-items: center; gap: 9px; font-family: var(--mono); font-size: 11px; }
+  .fair-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+  .fair-bar { height: 9px; background: var(--sunk); border-radius: 2px; overflow: hidden; }
+  .fair-fill { height: 100%; background: var(--tier); border-radius: 2px; }
+  .fair-pct { text-align: right; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .fair-verdict {
+    display: flex; gap: 8px; align-items: baseline; font-size: 12.5px; line-height: 1.5;
+    padding: 10px 12px; margin-top: 4px; border-radius: 3px;
+    background: var(--sunk); border-left: 3px solid var(--ok);
+  }
+  .fair-verdict strong { font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ok); font-family: var(--mono); }
+  .fair-verdict span { color: var(--muted); }
+
+  /* ---------- overlays ---------- */
+  .reveal {
+    position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 24px;
+    background: color-mix(in srgb, var(--paper) 88%, transparent); backdrop-filter: blur(7px);
+  }
+  .reveal-card {
+    position: relative; background: var(--panel); border: 1px solid var(--line);
+    border-top: 7px solid var(--tier); border-radius: 4px;
+    box-shadow: 0 24px 70px rgba(0,0,0,.3);
+    padding: 38px 42px 30px; text-align: center; max-width: 560px; width: 100%;
+    display: flex; flex-direction: column; gap: 7px;
+    animation: pop .42s cubic-bezier(.2,1.5,.4,1) both;
+  }
+  @keyframes pop { from { transform: scale(.88); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .reveal-eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--tier); }
+  .reveal-name {
+    font-family: var(--display); font-weight: 900;
+    font-size: clamp(36px, 8.5vw, 62px); line-height: 1.02;
+    text-transform: uppercase; text-wrap: balance; margin: 4px 0 2px; overflow-wrap: anywhere;
+  }
+  .reveal-sub { font-family: var(--mono); font-size: 11.5px; color: var(--faint); letter-spacing: .05em; }
+  .reveal-warn { font-family: var(--mono); font-size: 11.5px; color: var(--major); letter-spacing: .03em; }
+  .reveal-actions { display: flex; gap: 9px; justify-content: center; margin-top: 18px; flex-wrap: wrap; }
+  #confetti { position: fixed; inset: 0; z-index: 49; pointer-events: none; }
+
+  .ask-card { max-width: 430px; padding: 28px 30px 24px; text-align: left; border-top-color: var(--major); }
+  .ask-card h2 { font-family: var(--display); font-size: 16px; letter-spacing: .06em; text-transform: uppercase; margin: 0; }
+  .ask-card p { font-size: 13.5px; line-height: 1.55; color: var(--muted); margin: 0; }
+  .ask-actions { display: flex; gap: 9px; justify-content: flex-end; margin-top: 18px; }
+  .btn-solid {
+    font-family: var(--body); font-size: 12.5px; font-weight: 600; color: #fff;
+    background: var(--major); border: 1px solid var(--major); border-radius: 3px;
+    padding: 8px 15px; cursor: pointer;
+  }
+  .btn-solid:hover { filter: brightness(1.1); }
+
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reveal-card { animation: none; }
+    .spin-btn, .btn, .ms, .track, .track::after { transition: none; }
+  }
+</style>
+
+<div class="app">
+  <header class="masthead">
+    <h1 class="wordmark">Draw<span>.</span></h1>
+    <input type="text" id="eventName" value="Tap Tap Event" aria-label="Event name" />
+    <span class="payout" id="payout"></span>
+    <div class="masthead-end">
+      <button class="btn" id="themeBtn" type="button" title="Switch between automatic, light, and dark">Theme: Auto</button>
+      <button class="btn" id="copyBtn" type="button">Copy results</button>
+      <button class="btn" id="saveBtn" type="button">Save file</button>
+      <button class="btn" id="loadBtn" type="button">Load file</button>
+      <button class="btn btn-danger" id="resetBtn" type="button">New event</button>
+      <input type="file" id="fileInput" accept="application/json,.json" hidden />
+    </div>
+  </header>
+
+  <div class="shell">
+    <section class="stage">
+      <div class="now-drawing">
+        <span class="now-label" id="nowLabel">50K</span>
+        <span class="now-meta" id="nowMeta">Minor</span>
+      </div>
+
+      <div class="wheel-frame">
+        <div class="pointer" aria-hidden="true"></div>
+        <canvas id="wheel" role="img" aria-label="Prize wheel"></canvas>
+        <div class="stage-empty" id="stageEmpty" hidden>
+          <strong id="emptyTitle">Nobody on the wheel</strong>
+          <span id="emptyWhy"></span>
+        </div>
+      </div>
+
+      <div class="settled" id="settled" hidden>
+        <span class="settled-tag">Winner</span>
+        <span class="settled-name" id="settledName"></span>
+        <span class="settled-passed" id="settledPassed"></span>
+        <button class="btn" id="rerollBtn" type="button">Reroll &mdash; they passed</button>
+        <button class="btn btn-danger" id="undoBtn" type="button">Undo draw</button>
+      </div>
+
+      <div class="stage-controls" id="spinControls">
+        <button class="spin-btn" id="spinBtn" type="button">Spin</button>
+        <button class="btn" id="shuffleBtn" type="button">Shuffle seats</button>
+      </div>
+      <p class="stage-meta" id="stageMeta"></p>
+      <p class="sr-only" role="status" aria-live="polite" id="live"></p>
+    </section>
+
+    <aside class="rail">
+      <div class="card">
+        <div class="card-head">
+          <h2>Milestones</h2>
+          <span class="count" id="ladderCount"></span>
+          <button class="btn" id="editMsBtn" type="button">Edit</button>
+        </div>
+        <div class="ladder" id="ladder"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2 id="partTitle">Participants</h2>
+          <span class="count" id="partCount"></span>
+        </div>
+        <div class="card-body" id="partBody"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Rules</h2></div>
+        <div class="card-body">
+          <label class="toggle">
+            <input type="checkbox" id="skipToggle" />
+            <span class="track"></span>
+            <span class="toggle-copy">
+              <strong>Skip people who already won</strong>
+              <small id="skipNote"></small>
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Fairness check</h2>
+          <span class="count" id="fairMeta"></span>
+        </div>
+        <div class="card-body">
+          <p class="hint">Runs thousands of draws against the names on the wheel right now. An even spread means the draw isn&rsquo;t favouring anyone.</p>
+          <div class="btn-row"><button class="btn" id="fairBtn" type="button">Run 10,000 test draws</button></div>
+          <div id="fairOut"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Results</h2>
+          <span class="count" id="winCount"></span>
+        </div>
+        <div class="card-body"><div class="stubs" id="stubs"></div></div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<canvas id="confetti" hidden></canvas>
+
+<div class="reveal" id="reveal" hidden role="dialog" aria-modal="true" aria-labelledby="revealName">
+  <div class="reveal-card">
+    <p class="reveal-eyebrow" id="revealEyebrow"></p>
+    <h2 class="reveal-name" id="revealName">&mdash;</h2>
+    <p class="reveal-sub" id="revealSub"></p>
+    <p class="reveal-warn" id="revealWarn" hidden></p>
+    <div class="reveal-actions">
+      <button class="spin-btn" id="acceptBtn" type="button" style="font-size:15px;padding:13px 30px;">Accept</button>
+      <button class="btn" id="revealReroll" type="button">They passed &mdash; reroll</button>
+    </div>
+  </div>
+</div>
+
+<div class="reveal" id="ask" hidden role="dialog" aria-modal="true" aria-labelledby="askTitle">
+  <div class="reveal-card ask-card">
+    <h2 id="askTitle"></h2>
+    <p id="askBody"></p>
+    <div class="ask-actions">
+      <button class="btn" id="askCancel" type="button">Cancel</button>
+      <button class="btn-solid" id="askOk" type="button">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const KEY = 'draw.milestone.v2';
+  const DOT = '\u00B7';
+
+  /* ---------- randomness ----------
+     Cryptographic RNG rather than a seeded PRNG. The rejection loop drops the
+     ragged tail of the 32-bit range so every index is exactly equally likely;
+     a bare `% n` would very slightly favour the low indices. */
+  const rand32 = (() => {
+    const buf = new Uint32Array(1);
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      return () => { crypto.getRandomValues(buf); return buf[0]; };
+    }
+    return () => Math.floor(Math.random() * 0x100000000);
+  })();
+  function randomInt(n) {
+    if (n <= 1) return 0;
+    const limit = Math.floor(0x100000000 / n) * n;
+    let v; do { v = rand32(); } while (v >= limit);
+    return v % n;
+  }
+  function shuffled(list) {
+    const a = list.slice();
+    for (let i = a.length - 1; i > 0; i--) { const j = randomInt(i + 1); [a[i], a[j]] = [a[j], a[i]]; }
+    return a;
+  }
+
+  /* ---------- model ----------
+     The ladder runs every 50K to 1M. Each 250K mark is a major. MVP is a
+     virtual 21st draw whose pool is derived, never typed. */
+  /* Milestone ids are stable and separate from labels, so renaming a
+     milestone never orphans the people already ticked into it. */
+  let uidSeq = 0;
+  const uid = () => 'm' + (Date.now().toString(36)) + (uidSeq++).toString(36);
+
+  function defaultLadder() {
+    const out = [];
+    for (let v = 50; v <= 1000; v += 50) {
+      const major = v % 250 === 0;
+      out.push({
+        id: 'm' + v,
+        label: v === 1000 ? '1M' : v + 'K',
+        tier: major ? 'major' : 'minor',
+      });
+    }
+    return out;
+  }
+
+  const state = {
+    eventName: 'Tap Tap Event',
+    milestones: defaultLadder(),
+    mvpLabel: 'MVP',
+    theme: 'auto',           // 'auto' follows the viewer, otherwise forced
+    roster: [],              // { name, in: { <milestoneId>: true } }
+    results: {},             // <id|'mvp'> -> { winner, declined: [] }
+    sel: 'm50',
+    skipWinners: false,
+  };
+
+  let editingLadder = false;
+  const mvpRow = () => ({ id: 'mvp', label: state.mvpLabel || 'MVP', tier: 'mvp' });
+  const allRows = () => state.milestones.concat([mvpRow()]);
+
+  const key = s => s.trim().replace(/\s+/g, ' ').toUpperCase();
+  const msById = id => state.milestones.find(m => m.id === id);
+  const isMvp = () => state.sel === 'mvp';
+
+  function parseNames(raw) {
+    const seen = new Map();
+    raw.split(/[\n,]/).forEach(part => {
+      const n = part.trim().replace(/\s+/g, ' ');
+      if (n && !seen.has(key(n))) seen.set(key(n), n);
+    });
+    return [...seen.values()];
+  }
+
+  function findMember(name) { return state.roster.find(r => key(r.name) === key(name)); }
+  function addMember(name) {
+    let m = findMember(name);
+    if (!m) { m = { name, in: {} }; state.roster.push(m); }
+    return m;
+  }
+
+  const participants = id => state.roster.filter(r => r.in[id]);
+
+  /* A milestone counts as reached once anyone submitted for it or it was
+     drawn. If the live stops at 600K, everything above simply never becomes
+     reached, and MVP is judged only on what actually happened. */
+  const reached = () => state.milestones.filter(m => participants(m.id).length > 0 || state.results[m.id]);
+
+  function mvpEligible() {
+    const got = reached();
+    if (!got.length) return [];
+    return state.roster.filter(r => got.every(m => r.in[m.id]));
+  }
+
+  const winnersList = () => Object.entries(state.results)
+    .filter(([, v]) => v && v.winner)
+    .map(([id, v]) => ({ id, winner: v.winner }));
+
+  function winCountFor(name) {
+    return winnersList().filter(w => key(w.winner) === key(name)).length;
+  }
+
+  /* Names on the wheel for the current selection. */
+  function pool() {
+    const sel = state.sel;
+    const declined = (state.results[sel] && state.results[sel].declined) || [];
+    const dk = new Set(declined.map(key));
+    let names = (isMvp() ? mvpEligible() : participants(sel)).map(r => r.name);
+    names = names.filter(n => !dk.has(key(n)));
+    if (state.skipWinners) {
+      const won = new Set(winnersList().filter(w => w.id !== sel).map(w => key(w.winner)));
+      names = names.filter(n => !won.has(key(n)));
+    }
+    return names;
+  }
+
+  const tierOf = () => isMvp() ? 'mvp' : (msById(state.sel) || {}).tier || 'minor';
+  const cssVarFor = t => t === 'major' ? '--major' : t === 'mvp' ? '--mvp' : '--minor';
+
+  /* ---------- wheel order (cosmetic reshuffle) ---------- */
+  let wheelOrder = [], wheelSig = null;
+  function currentWheel(reshuffle) {
+    const names = pool();
+    const sig = state.sel + '|' + names.map(key).join(' ');
+    if (reshuffle || sig !== wheelSig) { wheelOrder = shuffled(names); wheelSig = sig; }
+    return wheelOrder;
+  }
+
+  /* ---------- persistence ---------- */
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+  function load() {
+    try {
+      const s = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (s && typeof s === 'object') adopt(s);
+    } catch (e) {}
+  }
+  function adopt(s) {
+    if (Array.isArray(s.milestones) && s.milestones.length) state.milestones = s.milestones;
+    if (Array.isArray(s.roster)) state.roster = s.roster.map(r => ({ name: r.name, in: r.in || {} }));
+    if (s.results && typeof s.results === 'object') state.results = s.results;
+    if (typeof s.eventName === 'string') state.eventName = s.eventName;
+    if (typeof s.mvpLabel === 'string') state.mvpLabel = s.mvpLabel;
+    if (['auto', 'light', 'dark'].includes(s.theme)) state.theme = s.theme;
+    if (typeof s.skipWinners === 'boolean') state.skipWinners = s.skipWinners;
+    if (typeof s.sel === 'string') state.sel = s.sel;
+    if (state.sel !== 'mvp' && !msById(state.sel)) state.sel = (state.milestones[0] || {}).id || 'mvp';
+  }
+
+  /* ---------- elements ---------- */
+  const $ = id => document.getElementById(id);
+  const canvas = $('wheel'), ctx = canvas.getContext('2d');
+  const root = document.documentElement;
+
+  /* ---------- wheel drawing ---------- */
+  let rotation = 0, spinning = false, cssSize = 0;
+  const accent = () => getComputedStyle(root).getPropertyValue(cssVarFor(tierOf())).trim() || '#888';
+  const isDark = () => {
+    const t = root.getAttribute('data-theme');
+    return t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  };
+  function shade(hex, amt) {
+    const h = hex.replace('#', '');
+    const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+    const num = parseInt(full, 16);
+    let r = (num >> 16) & 255, g = (num >> 8) & 255, b = num & 255;
+    if (amt > 0) { r += (255 - r) * amt; g += (255 - g) * amt; b += (255 - b) * amt; }
+    else { r *= (1 + amt); g *= (1 + amt); b *= (1 + amt); }
+    return 'rgb(' + Math.round(r) + ',' + Math.round(g) + ',' + Math.round(b) + ')';
+  }
+  function resize() {
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width) return;
+    cssSize = rect.width;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(cssSize * dpr);
+    canvas.height = Math.round(cssSize * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+  function draw() {
+    if (!cssSize) return;
+    const names = currentWheel();
+    const cx = cssSize / 2, cy = cssSize / 2, r = cssSize / 2 - 8;
+    const base = accent(), dark = isDark();
+    const bands = dark
+      ? [shade(base, -0.42), shade(base, -0.16), shade(base, -0.62)]
+      : [shade(base, 0.02), shade(base, 0.36), shade(base, 0.66)];
+    ctx.clearRect(0, 0, cssSize, cssSize);
+
+    if (!names.length) {
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.setLineDash([7, 7]);
+      ctx.strokeStyle = getComputedStyle(root).getPropertyValue('--line').trim();
+      ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([]);
+      return;
+    }
+    const n = names.length, seg = (Math.PI * 2) / n;
+    for (let i = 0; i < n; i++) {
+      const a0 = i * seg + rotation;
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, r, a0, a0 + seg); ctx.closePath();
+      ctx.fillStyle = n === 1 ? bands[0] : bands[i % 3];
+      ctx.fill();
+      if (n <= 40) { ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.lineWidth = 1; ctx.stroke(); }
+    }
+    if (seg * r > 15) {
+      const size = Math.max(9, Math.min(24, seg * r * 0.5, cssSize / 17));
+      ctx.font = '900 ' + size + 'px ' + getComputedStyle(root).getPropertyValue('--display');
+      ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+      const maxW = r - cssSize * 0.14;
+      for (let i = 0; i < n; i++) {
+        const mid = i * seg + seg / 2 + rotation;
+        ctx.save(); ctx.translate(cx, cy); ctx.rotate(mid);
+        let text = names[i].toUpperCase();
+        while (ctx.measureText(text).width > maxW && text.length > 2) text = text.slice(0, -2) + '\u2026';
+        ctx.fillStyle = 'rgba(255,255,255,.96)';
+        ctx.shadowColor = 'rgba(0,0,0,.3)'; ctx.shadowBlur = 2;
+        ctx.fillText(text, r - cssSize * 0.045, 0);
+        ctx.restore();
+      }
+    }
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = getComputedStyle(root).getPropertyValue('--panel').trim();
+    ctx.lineWidth = 5; ctx.stroke();
+
+    const hubR = Math.max(26, cssSize * 0.085);
+    ctx.beginPath(); ctx.arc(cx, cy, hubR, 0, Math.PI * 2);
+    ctx.fillStyle = getComputedStyle(root).getPropertyValue('--panel').trim(); ctx.fill();
+    ctx.strokeStyle = base; ctx.lineWidth = 3; ctx.stroke();
+    const label = isMvp() ? (state.mvpLabel || 'MVP') : ((msById(state.sel) || {}).label || '');
+    ctx.font = '900 ' + Math.max(9, hubR * (label.length > 3 ? 0.30 : 0.36)) + 'px ' + getComputedStyle(root).getPropertyValue('--display');
+    ctx.fillStyle = base; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.shadowBlur = 0;
+    ctx.fillText(label, cx, cy);
+  }
+
+  /* ---------- tick ---------- */
+  let audio = null, muted = false;
+  function tick() {
+    if (muted) return;
+    try {
+      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+      const osc = audio.createOscillator(), gain = audio.createGain();
+      osc.type = 'square'; osc.frequency.value = 1150;
+      gain.gain.setValueAtTime(0.05, audio.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + 0.035);
+      osc.connect(gain).connect(audio.destination);
+      osc.start(); osc.stop(audio.currentTime + 0.04);
+    } catch (e) { muted = true; }
+  }
+
+  /* ---------- spin ---------- */
+  let pendingFinish = null;
+  function spin() {
+    if (spinning) return;
+    const names = currentWheel();
+    if (!names.length) return;
+
+    spinning = true;
+    $('spinBtn').disabled = true;
+    $('shuffleBtn').disabled = true;
+
+    const idx = randomInt(names.length);
+    const winner = names[idx];
+    const seg = (Math.PI * 2) / names.length;
+    const jitter = (randomInt(1000) / 1000 - 0.5) * seg * 0.72;
+    const target = -Math.PI / 2 - (idx + 0.5) * seg + jitter;
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const turns = reduce ? 1 : 5 + randomInt(3);
+    let delta = target - rotation;
+    delta = ((delta % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) + turns * Math.PI * 2;
+
+    const start = rotation, dur = reduce ? 700 : 5200;
+    const t0 = performance.now();
+    let lastSeg = -1, done = false, guard = 0;
+
+    /* Browsers pause requestAnimationFrame while a tab is hidden, so a spin
+       begun before an alt-tab would hang with the button stuck disabled.
+       finish() is idempotent and reachable three ways: the animation ending,
+       the tab becoming visible, or the guard timer. */
+    function finish() {
+      if (done) return;
+      done = true;
+      clearTimeout(guard);
+      pendingFinish = null;
+      rotation = (start + delta) % (Math.PI * 2);
+      draw();
+      spinning = false;
+      record(winner);
+    }
+    function frame(now) {
+      if (done) return;
+      const p = Math.min(1, (now - t0) / dur);
+      rotation = start + delta * (1 - Math.pow(1 - p, 4));
+      const cur = Math.floor(rotation / seg);
+      if (cur !== lastSeg && p < 0.985) { lastSeg = cur; tick(); }
+      draw();
+      if (p < 1) requestAnimationFrame(frame); else finish();
+    }
+    pendingFinish = finish;
+    guard = setTimeout(finish, dur + 1500);
+    requestAnimationFrame(frame);
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && pendingFinish) pendingFinish();
+  });
+
+  function record(name) {
+    const cur = state.results[state.sel] || { winner: null, declined: [] };
+    cur.winner = name;
+    state.results[state.sel] = cur;
+    save();
+    render();
+    showReveal(name);
+  }
+
+  const selLabel = () => isMvp() ? (state.mvpLabel || 'MVP') : (msById(state.sel) || {}).label || '';
+
+  /* Reroll: the winner passed on the prize. They stay eligible everywhere
+     else, but are out of this milestone's redraw. Passing is reversible \u2014
+     someone who stepped aside because they had already won may want back in
+     once the winner they stepped aside for gives a prize up. */
+  async function reroll(thenSpin) {
+    const cur = state.results[state.sel];
+    if (!cur || !cur.winner) return;
+
+    const remaining = pool().filter(n => key(n) !== key(cur.winner));
+    if (!remaining.length) {
+      const total = (isMvp() ? mvpEligible() : participants(state.sel)).length;
+      const ok = await ask('Nobody left to reroll to',
+        'Everyone else on ' + selLabel() + ' has already passed, so a reroll would leave the wheel empty. ' +
+        'Undoing the draw instead clears the passes and puts all ' + total + ' back on.',
+        'Undo the draw');
+      if (ok) doUndo();
+      return;
+    }
+
+    cur.declined = cur.declined || [];
+    if (!cur.declined.some(d => key(d) === key(cur.winner))) cur.declined.push(cur.winner);
+    cur.winner = null;
+    save();
+    render();
+    if (thenSpin && pool().length) spin();
+  }
+
+  /* Put someone who passed back on this milestone's wheel. */
+  function restore(name) {
+    const cur = state.results[state.sel];
+    if (!cur) return;
+    cur.declined = (cur.declined || []).filter(d => key(d) !== key(name));
+    save();
+    render();
+    $('live').textContent = name + ' is back on ' + selLabel();
+  }
+
+  function doUndo() {
+    delete state.results[state.sel];
+    save();
+    render();
+  }
+
+  async function undoDraw() {
+    const cur = state.results[state.sel];
+    const passed = (cur && cur.declined) || [];
+    if (passed.length) {
+      const ok = await ask('Undo this draw',
+        'Clears the winner and puts the ' + passed.length + ' who passed (' + passed.join(', ') +
+        ') back on the wheel, so ' + selLabel() + ' starts fresh.',
+        'Undo draw');
+      if (!ok) return;
+    }
+    doUndo();
+  }
+
+  /* ---------- reveal ---------- */
+  function showReveal(name) {
+    const t = tierOf();
+    const m = isMvp() ? null : msById(state.sel);
+    $('revealEyebrow').textContent = isMvp()
+      ? (state.mvpLabel || 'MVP') + ' ' + DOT + ' grand prize'
+      : m.label + ' ' + DOT + ' ' + m.tier + ' milestone';
+    $('revealName').textContent = name;
+    $('revealSub').textContent = isMvp()
+      ? 'Participated in all ' + reached().length + ' milestones reached'
+      : pool().length + ' were on this wheel';
+    const others = winCountFor(name) - 1;
+    const warn = $('revealWarn');
+    if (others > 0) {
+      warn.hidden = false;
+      warn.textContent = 'Heads up ' + DOT + ' ' + name + ' has already won ' + others + ' other ' + (others === 1 ? 'prize' : 'prizes');
+    } else warn.hidden = true;
+    $('reveal').hidden = false;
+    $('acceptBtn').focus();
+    $('live').textContent = name + ' wins ' + (isMvp() ? (state.mvpLabel || 'MVP') : m.label);
+    burst();
+  }
+  const closeReveal = () => { $('reveal').hidden = true; };
+
+  const cc = $('confetti'), cctx = cc.getContext('2d');
+  function burst() {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cc.width = innerWidth * dpr; cc.height = innerHeight * dpr;
+    cc.style.width = innerWidth + 'px'; cc.style.height = innerHeight + 'px';
+    cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cc.hidden = false;
+    const base = accent();
+    const palette = [base, shade(base, 0.4), shade(base, -0.25), isDark() ? '#E6EDF2' : '#FFFFFF'];
+    const bits = Array.from({ length: 90 }, () => ({
+      x: innerWidth / 2 + (randomInt(140) - 70), y: innerHeight / 2,
+      vx: (randomInt(1000) / 1000 - 0.5) * 15, vy: -9 - randomInt(13),
+      w: 5 + randomInt(7), h: 3 + randomInt(5),
+      rot: randomInt(628) / 100, vr: (randomInt(1000) / 1000 - 0.5) * 0.34,
+      c: palette[randomInt(palette.length)],
+    }));
+    const t0 = performance.now();
+    (function step(now) {
+      const t = now - t0;
+      cctx.clearRect(0, 0, innerWidth, innerHeight);
+      bits.forEach(b => {
+        b.vy += 0.42; b.x += b.vx; b.y += b.vy; b.vx *= 0.99; b.rot += b.vr;
+        cctx.save(); cctx.translate(b.x, b.y); cctx.rotate(b.rot);
+        cctx.globalAlpha = Math.max(0, 1 - t / 1700);
+        cctx.fillStyle = b.c; cctx.fillRect(-b.w / 2, -b.h / 2, b.w, b.h);
+        cctx.restore();
+      });
+      if (t < 1700) requestAnimationFrame(step);
+      else { cctx.clearRect(0, 0, innerWidth, innerHeight); cc.hidden = true; }
+    })(t0);
+  }
+
+  /* ---------- dialogs / clipboard (sandbox safe) ---------- */
+  let askResolve = null;
+  function ask(title, body, okLabel) {
+    $('askTitle').textContent = title;
+    $('askBody').textContent = body;
+    $('askOk').textContent = okLabel;
+    $('ask').hidden = false;
+    $('askCancel').focus();
+    return new Promise(res => { askResolve = res; });
+  }
+  function settleAsk(v) { $('ask').hidden = true; if (askResolve) { askResolve(v); askResolve = null; } }
+  $('askOk').addEventListener('click', () => settleAsk(true));
+  $('askCancel').addEventListener('click', () => settleAsk(false));
+  $('ask').addEventListener('click', e => { if (e.target === $('ask')) settleAsk(false); });
+
+  async function copyText(text) {
+    try {
+      if (navigator.clipboard && isSecureContext) { await navigator.clipboard.writeText(text); return true; }
+    } catch (e) {}
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+      document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, text.length);
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch (e) { return false; }
+  }
+
+  /* ---------- rendering ---------- */
+  function renderLadderEditor() {
+    const box = $('ladder');
+    box.innerHTML = '';
+    $('ladderCount').textContent = state.milestones.length + ' milestones';
+
+    const wrap = document.createElement('div');
+    wrap.className = 'ms-edit-body';
+
+    const note = document.createElement('p');
+    note.className = 'hint';
+    note.textContent = 'Rename, re-price, or re-tier anything. Ticks follow the milestone even if you rename it.';
+    wrap.appendChild(note);
+
+    state.milestones.forEach((m, i) => {
+      const row = document.createElement('div');
+      row.className = 'ms-edit';
+
+      const lab = document.createElement('input');
+      lab.type = 'text'; lab.value = m.label; lab.setAttribute('aria-label', 'Milestone name');
+      lab.addEventListener('input', () => { m.label = lab.value; save(); renderStage(); renderResults(); });
+
+      const tier = document.createElement('select');
+      [['minor', 'Minor'], ['major', 'Major']].forEach(([v, t]) => {
+        const o = document.createElement('option');
+        o.value = v; o.textContent = t; o.selected = m.tier === v;
+        tier.appendChild(o);
+      });
+      tier.setAttribute('aria-label', 'Tier');
+      tier.addEventListener('change', () => { m.tier = tier.value; save(); render(); });
+
+      const del = document.createElement('button');
+      del.className = 'icon-btn'; del.type = 'button'; del.textContent = '\u00D7';
+      del.title = 'Delete ' + m.label;
+      del.setAttribute('aria-label', 'Delete milestone ' + m.label);
+      del.addEventListener('click', async () => {
+        const inIt = participants(m.id).length;
+        const won = state.results[m.id] && state.results[m.id].winner;
+        const ok = await ask('Delete ' + m.label,
+          inIt || won
+            ? 'This milestone has ' + inIt + ' participant(s)' + (won ? ' and a drawn winner' : '') +
+              '. Deleting it drops those ticks and that result.'
+            : 'Nobody is in this milestone yet, so nothing else changes.',
+          'Delete');
+        if (!ok) return;
+        state.milestones.splice(i, 1);
+        delete state.results[m.id];
+        state.roster.forEach(r => { delete r.in[m.id]; });
+        if (state.sel === m.id) state.sel = (state.milestones[0] || {}).id || 'mvp';
+        save(); render();
+      });
+
+      row.append(lab, tier, del);
+      wrap.appendChild(row);
+    });
+
+    // The grand prize is derived, not a milestone, so only its name is editable.
+    const gp = document.createElement('div');
+    gp.className = 'ms-edit mvp-edit';
+    const gpIn = document.createElement('input');
+    gpIn.type = 'text';
+    gpIn.value = state.mvpLabel || 'MVP';
+    gpIn.setAttribute('aria-label', 'Grand prize name');
+    gpIn.addEventListener('input', () => {
+      state.mvpLabel = gpIn.value;
+      save(); renderStage(); renderResults(); draw();
+    });
+    const gpTag = document.createElement('span');
+    gpTag.className = 'ms-edit-fixed';
+    gpTag.textContent = 'Grand prize';
+    gp.append(gpIn, gpTag);
+    wrap.appendChild(gp);
+
+    const actions = document.createElement('div');
+    actions.className = 'btn-row';
+
+    const add = document.createElement('button');
+    add.className = 'btn btn-accent'; add.type = 'button'; add.textContent = 'Add milestone';
+    add.addEventListener('click', () => {
+      state.milestones.push({ id: uid(), label: 'New', tier: 'minor' });
+      save(); renderLadderEditor();
+    });
+
+    const reset = document.createElement('button');
+    reset.className = 'btn'; reset.type = 'button'; reset.textContent = 'Reset to 50K\u20131M ladder';
+    reset.addEventListener('click', async () => {
+      const ok = await ask('Reset the ladder',
+        'Restores the default 20 milestones (every 50K to 1M, majors at each 250K). Everyone currently ticked into a milestone loses those ticks.',
+        'Reset ladder');
+      if (!ok) return;
+      state.milestones = defaultLadder();
+      state.results = {};
+      state.roster.forEach(r => { r.in = {}; });
+      state.sel = state.milestones[0].id;
+      save(); render();
+    });
+
+    actions.append(add, reset);
+    wrap.appendChild(actions);
+    box.appendChild(wrap);
+  }
+
+  function renderLadder() {
+    if (editingLadder) return renderLadderEditor();
+    const box = $('ladder');
+    box.innerHTML = '';
+    const got = reached();
+    $('ladderCount').textContent = got.length + ' of ' + state.milestones.length + ' reached';
+
+    allRows().forEach(m => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'ms';
+      btn.setAttribute('aria-current', String(state.sel === m.id));
+      btn.style.setProperty('--mc', 'var(' + cssVarFor(m.tier) + ')');
+
+      const lbl = document.createElement('span');
+      lbl.className = 'ms-label';
+      lbl.textContent = m.label;
+
+      const chip = document.createElement('span');
+      chip.className = 'ms-prize';
+      chip.textContent = m.tier === 'mvp' ? 'grand' : m.tier;
+
+      const st = document.createElement('span');
+      st.className = 'ms-state';
+      const res = state.results[m.id];
+      const count = m.id === 'mvp' ? mvpEligible().length : participants(m.id).length;
+      if (res && res.winner) { st.textContent = res.winner; st.classList.add('won'); }
+      else if (count) { st.textContent = count + ' in'; st.classList.add('ready'); }
+      else st.textContent = m.id === 'mvp' ? 'derived' : 'not reached';
+
+      btn.append(lbl, chip, st);
+      btn.addEventListener('click', () => { state.sel = m.id; save(); render(); });
+      box.appendChild(btn);
+    });
+  }
+
+  /* Who stepped aside on this milestone, and a way back on. Without this the
+     wheel silently shrinks and nothing on screen explains why. */
+  function passedBlock() {
+    const cur = state.results[state.sel];
+    const passed = (cur && cur.declined) || [];
+    if (!passed.length) return null;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'passed';
+
+    const head = document.createElement('div');
+    head.className = 'passed-head';
+    const h = document.createElement('span');
+    h.textContent = 'Passed on ' + selLabel();
+    const all = document.createElement('button');
+    all.className = 'btn'; all.type = 'button'; all.textContent = 'Put all back';
+    all.addEventListener('click', () => {
+      cur.declined = [];
+      save(); render();
+      $('live').textContent = 'Everyone is back on ' + selLabel();
+    });
+    head.append(h, all);
+    wrap.appendChild(head);
+
+    passed.forEach(name => {
+      const row = document.createElement('div');
+      row.className = 'passed-row';
+      const nm = document.createElement('span');
+      nm.className = 'passed-name'; nm.textContent = name;
+      const back = document.createElement('button');
+      back.className = 'btn'; back.type = 'button'; back.textContent = 'Put back';
+      back.setAttribute('aria-label', 'Put ' + name + ' back on ' + selLabel());
+      back.addEventListener('click', () => restore(name));
+      row.append(nm, back);
+      wrap.appendChild(row);
+    });
+
+    const note = document.createElement('p');
+    note.className = 'hint';
+    note.textContent = 'They are off this wheel only \u2014 still eligible for every other milestone.';
+    wrap.appendChild(note);
+    return wrap;
+  }
+
+  function renderParticipants() {
+    const body = $('partBody');
+    body.innerHTML = '';
+
+    if (isMvp()) {
+      $('partTitle').textContent = (state.mvpLabel || 'MVP') + ' eligibility';
+      const got = reached();
+      const eligible = mvpEligible();
+      $('partCount').textContent = eligible.length + ' eligible';
+
+      const banner = document.createElement('p');
+      banner.className = 'banner';
+      if (!got.length) {
+        banner.textContent = 'No milestones reached yet. Eligibility appears once people are added to milestones.';
+        body.appendChild(banner);
+        return;
+      }
+      banner.innerHTML = (state.mvpLabel || 'MVP') + ' needs every milestone the live actually reached &mdash; <b>' + got.length +
+        '</b> so far, ' + got[0].label + ' to ' + got[got.length - 1].label +
+        '. Nothing to type here; it follows the ticks.';
+      body.appendChild(banner);
+
+      const rows = state.roster
+        .map(r => ({ name: r.name, hits: got.filter(m => r.in[m.id]).length }))
+        .sort((a, b) => b.hits - a.hits || a.name.localeCompare(b.name));
+
+      if (!rows.length) {
+        const p = document.createElement('p');
+        p.className = 'empty-note';
+        p.textContent = 'Nobody in the roster yet.';
+        body.appendChild(p);
+        return;
+      }
+      const list = document.createElement('div');
+      list.className = 'elig';
+      rows.forEach(r => {
+        const row = document.createElement('div');
+        row.className = 'elig-row' + (r.hits === got.length ? '' : ' out');
+        const nm = document.createElement('span');
+        nm.className = 'elig-name'; nm.textContent = r.name;
+        const sc = document.createElement('span');
+        sc.className = 'elig-score';
+        sc.textContent = r.hits + '/' + got.length + (r.hits === got.length ? '  ELIGIBLE' : '');
+        row.append(nm, sc);
+        list.appendChild(row);
+      });
+      body.appendChild(list);
+      const pb = passedBlock();
+      if (pb) body.appendChild(pb);
+      return;
+    }
+
+    const m = msById(state.sel);
+    $('partTitle').textContent = m.label + ' participants';
+    const here = participants(m.id);
+    $('partCount').textContent = here.length + ' verified';
+
+    const field = document.createElement('label');
+    field.className = 'field';
+    const span = document.createElement('span');
+    span.textContent = 'Add names who submitted proof for ' + m.label;
+    const ta = document.createElement('textarea');
+    ta.placeholder = 'Paste or type names, one per line';
+    ta.spellcheck = false;
+    field.append(span, ta);
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn btn-accent';
+    addBtn.type = 'button';
+    addBtn.textContent = 'Add to ' + m.label;
+    const commit = () => {
+      const names = parseNames(ta.value);
+      if (!names.length) return;
+      names.forEach(n => { addMember(n).in[m.id] = true; });
+      ta.value = '';
+      save(); render();
+      $('live').textContent = names.length + ' added to ' + m.label;
+    };
+    addBtn.addEventListener('click', commit);
+    ta.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); commit(); }
+    });
+
+    const row = document.createElement('div');
+    row.className = 'btn-row';
+    row.appendChild(addBtn);
+    body.append(field, row);
+
+    if (!state.roster.length) {
+      const p = document.createElement('p');
+      p.className = 'hint';
+      p.textContent = 'Names you add are remembered. Next milestone they are already listed \u2014 just tick them.';
+      body.appendChild(p);
+      const pb0 = passedBlock();
+      if (pb0) body.appendChild(pb0);
+      return;
+    }
+
+    const filter = document.createElement('input');
+    filter.type = 'search';
+    filter.placeholder = 'Filter roster';
+    filter.setAttribute('aria-label', 'Filter roster');
+    body.appendChild(filter);
+
+    const list = document.createElement('div');
+    list.className = 'roster';
+    body.appendChild(list);
+
+    const got = reached().length;
+    const paint = () => {
+      const q = filter.value.trim().toLowerCase();
+      list.innerHTML = '';
+      const rows = state.roster
+        .filter(r => !q || r.name.toLowerCase().includes(q))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      if (!rows.length) {
+        const p = document.createElement('p');
+        p.className = 'empty-note'; p.textContent = 'No names match.';
+        list.appendChild(p); return;
+      }
+      rows.forEach(r => {
+        const wrap = document.createElement('div');
+        wrap.className = 'r-row';
+
+        const t = document.createElement('button');
+        t.type = 'button'; t.className = 'r-toggle';
+        t.setAttribute('aria-pressed', String(!!r.in[m.id]));
+        const box = document.createElement('span');
+        box.className = 'r-box'; box.textContent = '\u2713';
+        const nm = document.createElement('span');
+        nm.className = 'r-name'; nm.textContent = r.name;
+        t.append(box, nm);
+        t.addEventListener('click', () => {
+          if (r.in[m.id]) delete r.in[m.id]; else r.in[m.id] = true;
+          save(); render();
+        });
+
+        const tally = document.createElement('span');
+        tally.className = 'r-tally';
+        const hits = reached().filter(x => r.in[x.id]).length;
+        if (got) {
+          tally.textContent = hits + '/' + got;
+          if (hits === got) tally.classList.add('full');
+        }
+
+        const del = document.createElement('button');
+        del.className = 'icon-btn'; del.type = 'button';
+        del.textContent = '\u00D7';
+        del.setAttribute('aria-label', 'Remove ' + r.name + ' from the roster entirely');
+        del.title = 'Remove from roster';
+        del.addEventListener('click', async () => {
+          const ok = await ask('Remove ' + r.name,
+            'Takes them out of the roster and every milestone they were ticked into. Prizes already drawn stay recorded.',
+            'Remove');
+          if (!ok) return;
+          state.roster = state.roster.filter(x => x !== r);
+          save(); render();
+        });
+
+        wrap.append(t, tally, del);
+        list.appendChild(wrap);
+      });
+    };
+    filter.addEventListener('input', paint);
+    paint();
+
+    const pb = passedBlock();
+    if (pb) body.appendChild(pb);
+  }
+
+  function renderStage() {
+    const names = pool();
+    const res = state.results[state.sel];
+    const settled = !!(res && res.winner);
+    const m = isMvp() ? null : msById(state.sel);
+
+    $('nowLabel').textContent = isMvp() ? (state.mvpLabel || 'MVP') : m.label;
+    $('nowMeta').textContent = isMvp()
+      ? 'Grand prize'
+      : m.tier + ' milestone';
+
+    $('settled').hidden = !settled;
+    $('spinControls').hidden = settled;
+    if (settled) {
+      $('settledName').textContent = res.winner;
+      const passed = res.declined || [];
+      // Say plainly why the wheel was smaller than the participant count.
+      $('settledPassed').textContent = passed.length
+        ? 'after ' + passed.length + ' passed (' + passed.join(', ') + ')'
+        : '';
+      const left = pool().filter(n => key(n) !== key(res.winner)).length;
+      $('rerollBtn').textContent = left ? 'Reroll \u2014 they passed' : 'They passed \u2014 nobody left';
+    }
+
+    $('spinBtn').disabled = !names.length || spinning;
+    $('shuffleBtn').disabled = names.length < 2 || spinning;
+    $('stageEmpty').hidden = names.length > 0 || settled;
+
+    if (!names.length && !settled) {
+      if (isMvp()) {
+        $('emptyTitle').textContent = 'No one qualifies yet';
+        $('emptyWhy').textContent = reached().length
+          ? (state.mvpLabel || 'MVP') + ' needs every one of the ' + reached().length + ' milestones reached so far. Nobody has the full set.'
+          : 'Add participants to milestones first.';
+      } else {
+        $('emptyTitle').textContent = 'Nobody on the wheel';
+        $('emptyWhy').textContent = 'Add the names who submitted verified proof for ' + m.label + '.';
+      }
+    }
+
+    const declined = (res && res.declined) || [];
+    const bits = [];
+    if (names.length) bits.push(names.length + ' on the wheel', '1 in ' + names.length + ' odds');
+    if (declined.length) bits.push(declined.length + ' passed');
+    $('stageMeta').textContent = settled ? '' : bits.join('  ' + DOT + '  ');
+
+    $('fairOut').innerHTML = '';
+    $('fairMeta').textContent = '';
+  }
+
+  function renderResults() {
+    const box = $('stubs');
+    box.innerHTML = '';
+    const rows = allRows()
+      .filter(m => state.results[m.id] && state.results[m.id].winner);
+
+    $('winCount').textContent = rows.length + ' drawn';
+    $('payout').textContent = rows.length ? rows.length + ' of ' + (state.milestones.length + 1) + ' drawn' : '';
+
+    if (!rows.length) {
+      const p = document.createElement('p');
+      p.className = 'empty-note';
+      p.textContent = 'Nothing drawn yet. Winners collect here as you work down the ladder.';
+      box.appendChild(p);
+      return;
+    }
+    rows.forEach(m => {
+      const w = state.results[m.id].winner;
+      const stub = document.createElement('div');
+      stub.className = 'stub';
+      stub.style.setProperty('--sc', 'var(' + cssVarFor(m.tier) + ')');
+
+      const serial = document.createElement('span');
+      serial.className = 'serial'; serial.textContent = m.label;
+
+      const bodyEl = document.createElement('div');
+      bodyEl.className = 'stub-body';
+      const nm = document.createElement('span');
+      nm.className = 'stub-name'; nm.textContent = w;
+      const tr = document.createElement('span');
+      tr.className = 'stub-tier';
+      tr.textContent = m.id === 'mvp' ? 'grand prize' : m.tier + ' milestone';
+      bodyEl.append(nm, tr);
+      const dupes = winCountFor(w);
+      if (dupes > 1) {
+        const warn = document.createElement('span');
+        warn.className = 'warn';
+        warn.textContent = 'won ' + dupes + ' prizes';
+        bodyEl.appendChild(warn);
+      }
+
+      const go = document.createElement('button');
+      go.className = 'icon-btn'; go.type = 'button';
+      go.textContent = '\u203A';
+      go.title = 'Open ' + m.label;
+      go.setAttribute('aria-label', 'Open ' + m.label);
+      go.addEventListener('click', () => { state.sel = m.id; save(); render(); });
+
+      stub.append(serial, bodyEl, go);
+      box.appendChild(stub);
+    });
+  }
+
+  function render() {
+    root.style.setProperty('--tier', 'var(' + cssVarFor(tierOf()) + ')');
+    $('eventName').value = state.eventName;
+    $('skipToggle').checked = state.skipWinners;
+    $('skipNote').textContent = state.skipWinners
+      ? 'On \u2014 anyone holding a prize is left off later wheels.'
+      : 'Off \u2014 everyone stays in every wheel they qualify for.';
+    renderLadder();
+    renderParticipants();
+    renderStage();
+    renderResults();
+    draw();
+  }
+
+  /* ---------- theme ----------
+     Auto leaves the page to the viewer's own setting; picking light or dark
+     stamps data-theme, which the palette treats as the final word. */
+  const THEMES = ['auto', 'light', 'dark'];
+  const THEME_COPY = { auto: 'Theme: Auto', light: 'Theme: Light', dark: 'Theme: Dark' };
+  function applyTheme() {
+    if (state.theme === 'auto') root.removeAttribute('data-theme');
+    else root.setAttribute('data-theme', state.theme);
+    $('themeBtn').textContent = THEME_COPY[state.theme];
+    $('themeBtn').setAttribute('aria-label', state.theme === 'auto'
+      ? 'Theme follows your device. Click to force light.'
+      : 'Theme forced to ' + state.theme + '. Click to change.');
+  }
+  $('themeBtn').addEventListener('click', () => {
+    state.theme = THEMES[(THEMES.indexOf(state.theme) + 1) % THEMES.length];
+    applyTheme();
+    save();
+    draw();
+    $('live').textContent = THEME_COPY[state.theme];
+  });
+
+  /* ---------- events ---------- */
+  $('editMsBtn').addEventListener('click', () => {
+    editingLadder = !editingLadder;
+    const b = $('editMsBtn');
+    b.textContent = editingLadder ? 'Done' : 'Edit';
+    b.setAttribute('aria-pressed', String(editingLadder));
+    render();
+  });
+
+  $('spinBtn').addEventListener('click', spin);
+  $('shuffleBtn').addEventListener('click', () => {
+    if (spinning || pool().length < 2) return;
+    currentWheel(true); draw();
+    $('live').textContent = 'Wheel positions shuffled.';
+  });
+  $('acceptBtn').addEventListener('click', closeReveal);
+  $('revealReroll').addEventListener('click', () => { closeReveal(); reroll(true); });
+  $('reveal').addEventListener('click', e => { if (e.target === $('reveal')) closeReveal(); });
+  $('rerollBtn').addEventListener('click', () => reroll(true));
+  $('undoBtn').addEventListener('click', undoDraw);
+
+  $('eventName').addEventListener('input', e => { state.eventName = e.target.value; save(); });
+  $('skipToggle').addEventListener('change', e => { state.skipWinners = e.target.checked; save(); render(); });
+
+  $('fairBtn').addEventListener('click', () => {
+    const names = pool(), out = $('fairOut');
+    out.innerHTML = '';
+    if (names.length < 2) {
+      const p = document.createElement('p');
+      p.className = 'hint';
+      p.textContent = 'Put at least two names on the wheel first \u2014 there is nothing to spread out otherwise.';
+      out.appendChild(p); return;
+    }
+    const N = 10000, n = names.length, tally = new Array(n).fill(0);
+    for (let i = 0; i < N; i++) tally[randomInt(n)]++;
+    const expected = N / n;
+    const sd = Math.sqrt(N * (1 / n) * (1 - 1 / n));
+    const worst = Math.max.apply(null, tally.map(c => Math.abs(c - expected) / sd));
+    const peak = Math.max.apply(null, tally);
+
+    const box = document.createElement('div');
+    box.className = 'fair';
+    names.map((name, i) => ({ name, count: tally[i] }))
+      .sort((a, b) => b.count - a.count)
+      .forEach(r => {
+        const row = document.createElement('div'); row.className = 'fair-row';
+        const nm = document.createElement('span'); nm.className = 'fair-name'; nm.textContent = r.name;
+        const bar = document.createElement('div'); bar.className = 'fair-bar';
+        const fill = document.createElement('div'); fill.className = 'fair-fill';
+        fill.style.width = (r.count / peak * 100).toFixed(1) + '%';
+        bar.appendChild(fill);
+        const pct = document.createElement('span'); pct.className = 'fair-pct';
+        pct.textContent = (r.count / N * 100).toFixed(1) + '%';
+        row.append(nm, bar, pct); box.appendChild(row);
+      });
+    out.appendChild(box);
+
+    const v = document.createElement('div'); v.className = 'fair-verdict';
+    const tag = document.createElement('strong'), note = document.createElement('span');
+    const even = (100 / n).toFixed(1);
+    if (worst < 4) {
+      tag.textContent = 'Even';
+      note.textContent = 'Every name landed near the ' + even + '% an even draw predicts. The gaps are ordinary randomness, not bias.';
+    } else {
+      tag.textContent = 'Check';
+      note.textContent = 'One name sits ' + worst.toFixed(1) + ' standard deviations off ' + even + '%. Unusual \u2014 run it again and see if it repeats.';
+      v.style.borderLeftColor = 'var(--major)'; tag.style.color = 'var(--major)';
+    }
+    v.append(tag, note); out.appendChild(v);
+    $('fairMeta').textContent = '10,000 draws ' + DOT + ' ' + n + ' names';
+  });
+
+  function resultsText() {
+    const rows = allRows()
+      .filter(m => state.results[m.id] && state.results[m.id].winner);
+    if (!rows.length) return '';
+    const lines = ['**' + state.eventName + ' \u2014 Results**', ''];
+    rows.forEach(m => {
+      const tag = m.id === 'mvp' ? (state.mvpLabel || 'MVP') : m.tier;
+      lines.push('`' + m.label.padEnd(6) + '` **' + state.results[m.id].winner + '**  _' + tag + '_');
+    });
+    lines.push('', rows.length + ' of ' + (state.milestones.length + 1) + ' drawn');
+    return lines.join('\n');
+  }
+
+  $('copyBtn').addEventListener('click', async () => {
+    const btn = $('copyBtn'), text = resultsText();
+    if (!text) {
+      btn.textContent = 'Nothing yet';
+      setTimeout(() => { btn.textContent = 'Copy results'; }, 1600);
+      return;
+    }
+    btn.textContent = (await copyText(text)) ? 'Copied' : 'Copy failed';
+    setTimeout(() => { btn.textContent = 'Copy results'; }, 1600);
+  });
+
+  /* ---------- save / load ---------- */
+  $('saveBtn').addEventListener('click', async () => {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+    const safe = (state.eventName || 'event').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') || 'event';
+    const name = 'draw-' + safe + '.json';
+    try {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      const btn = $('saveBtn');
+      btn.textContent = 'Saved';
+      setTimeout(() => { btn.textContent = 'Save file'; }, 1600);
+    } catch (e) {
+      // Downloads can be blocked when the page is embedded; fall back to clipboard.
+      const ok = await copyText(JSON.stringify(state));
+      await ask('Download blocked',
+        ok ? 'This page cannot save files where it is running, so the backup was copied to your clipboard instead. Paste it into a text file to keep it.'
+           : 'This page cannot save files where it is running, and the clipboard was unavailable too. Open the local copy of this page to export.',
+        'Got it');
+    }
+  });
+
+  $('loadBtn').addEventListener('click', () => $('fileInput').click());
+  $('fileInput').addEventListener('change', async e => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    let parsed;
+    try {
+      parsed = JSON.parse(await file.text());
+    } catch (err) {
+      await ask('Could not read that file', 'It is not a backup this app wrote. Pick the .json file you saved earlier.', 'Got it');
+      return;
+    }
+    if (!parsed || !Array.isArray(parsed.roster)) {
+      await ask('Could not read that file', 'That JSON has no roster in it, so it is not a Draw backup.', 'Got it');
+      return;
+    }
+    const drawn = Object.values(parsed.results || {}).filter(r => r && r.winner).length;
+    const ok = await ask('Load this backup?',
+      'Replaces everything on screen with "' + (parsed.eventName || 'Untitled') + '" \u2014 ' +
+      (parsed.roster.length) + ' in the roster, ' + drawn + ' prizes already drawn. Your current event is not saved anywhere else.',
+      'Load it');
+    if (!ok) return;
+    adopt(parsed);
+    save(); render();
+  });
+
+  $('resetBtn').addEventListener('click', async () => {
+    const ok = await ask('Start a new event',
+      'Clears the roster, every milestone tick, and every winner. Save a file first if you want this event back. There is no undo.',
+      'Clear everything');
+    if (!ok) return;
+    state.roster = []; state.results = {};
+    state.milestones = defaultLadder();
+    state.sel = state.milestones[0].id;
+    save(); render();
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      if (!$('ask').hidden) return settleAsk(false);
+      if (!$('reveal').hidden) return closeReveal();
+    }
+    const tag = e.target.tagName;
+    if (e.code === 'Space' && !spinning && $('ask').hidden && tag !== 'TEXTAREA' && tag !== 'INPUT' && tag !== 'BUTTON') {
+      e.preventDefault();
+      if (!$('reveal').hidden) closeReveal();
+      else if (!state.results[state.sel] || !state.results[state.sel].winner) spin();
+    }
+  });
+
+  addEventListener('resize', resize);
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', draw);
+  new MutationObserver(draw).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+
+  load();
+  applyTheme();
+  render();
+  resize();
+  requestAnimationFrame(resize);
+})();
+</script>
