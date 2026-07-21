@@ -538,6 +538,15 @@
 (() => {
   'use strict';
 
+  /* Keep the hosted copy out of search results. robots.txt handles crawlers
+     that never run scripts; this covers renderers that do. */
+  if (!document.querySelector('meta[name="robots"]')) {
+    const meta = document.createElement('meta');
+    meta.name = 'robots';
+    meta.content = 'noindex, nofollow';
+    document.head.appendChild(meta);
+  }
+
   const KEY = 'draw.milestone.v2';
   const DOT = '\u00B7';
 
