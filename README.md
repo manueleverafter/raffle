@@ -73,6 +73,20 @@ odds — but it stops anyone reading patterns into where names sit.
 Worth knowing: a name winning several times in a row is less unlikely than it feels. With 5 people, one
 name taking 5 straight is about 1 in 625. Uncommon, not broken.
 
+## Known limits
+
+Worth knowing before you rely on it:
+
+- **No sync.** Two people opening the site get two separate events. `Save file` / `Load file` is the only
+  bridge between them. A shared live event would need a server, which this deliberately does not have.
+- **One event at a time** per browser. Starting a new one replaces the old, so export first.
+- **Storage is the browser's.** Clearing site data wipes the event. Private windows discard it on close.
+  If a save ever fails the app now says so loudly, but a browser that quietly evicts storage later is
+  outside its control — export after each milestone if the event matters.
+- **The hosted copy and a downloaded copy do not share data.** They are separate origins.
+- **`Undo draw`, `New event`, milestone delete and ladder reset are one-way.** Each confirms first and
+  names what it destroys, but there is no undo history.
+
 ## Your data stays in your browser
 
 There is no server and no account. Everything lives in your browser's local storage, which means:
