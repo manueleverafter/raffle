@@ -114,8 +114,16 @@ backup is copied to your clipboard instead.
 
 ### Settings
 
-**Skip people who already won** (off by default) leaves anyone holding a prize off later wheels. Left off,
-everyone stays in every wheel they qualify for and you handle repeats case by case with reroll.
+**Skip people who already won** is set **per tier** — minor, major, and the grand prize each have their own
+switch, all off by default. Not every event runs the same way: a common setup is spreading the small prizes
+around while leaving the grand prize open to everyone who qualified.
+
+The rule is about being *drawn*, not about qualifying. Someone held back still counts as having taken part,
+so their grand-prize eligibility is unaffected — turning the grand-prize switch off puts them straight back
+on that wheel.
+
+Wherever the rule is hiding people, the wheel says so — `3 held (already won)` — and the eligibility list
+marks them `HELD — WON 50K` rather than showing them as available.
 
 ## Running it yourself
 
