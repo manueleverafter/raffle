@@ -85,7 +85,56 @@ Worth knowing before you rely on it:
   outside its control — export after each milestone if the event matters.
 - **The hosted copy and a downloaded copy do not share data.** They are separate origins.
 - **`Undo draw`, `New event`, milestone delete and ladder reset are one-way.** Each confirms first and
-  names what it destroys, but there is no undo history.
+  names what it destroys, but there is no undo history. This is the largest known gap — see
+  [Not built yet](#not-built-yet).
+
+## Not built yet
+
+### A snapshot ring — recovering from a confirmed click
+
+**The gap.** Every destructive action in the app is guarded by a confirmation that names what it will
+destroy, and that is where the protection stops. Once confirmed, the data is gone:
+
+| Action | Destroys |
+| --- | --- |
+| `Undo draw` | one winner |
+| Milestone delete | that milestone's ticks and its result |
+| `Reset the ladder` | every tick and **every winner drawn so far** |
+| `New event` | the roster, every tick, every winner |
+| Roster member delete | that person's ticks across all milestones |
+
+Confirmations stop the accidental click. They do nothing for the deliberate click you regret ten seconds
+later, and `Reset the ladder` in particular can erase a full evening's draws in one confirmed action.
+
+**Why it is worth building.** It is the single change that would turn every one-way door in the app into a
+recoverable one, and it needs no server — the whole point of the design. It also covers five separate
+failure paths at once, which no other outstanding item comes close to.
+
+**Sketch.** Keep the last ~10 states in their own storage key, written immediately *before* any destructive
+action:
+
+```js
+function snapshot(reason) {
+  try {
+    const ring = JSON.parse(localStorage.getItem(KEY + '.ring') || '[]');
+    ring.unshift({ at: Date.now(), reason, state: JSON.parse(JSON.stringify(state)) });
+    localStorage.setItem(KEY + '.ring', JSON.stringify(ring.slice(0, 10)));
+  } catch (e) { /* never let a failed snapshot block the action */ }
+}
+```
+
+Call it at the top of `doUndo()`, the ladder reset, `New event`, milestone delete, and roster member delete,
+passing a human-readable reason (`'before New event'`, `'before deleting 250K'`). Then expose a **Restore**
+list in the masthead showing each entry as *reason + how long ago*, restoring via the existing `adopt()`.
+
+**Watch out for:**
+
+- localStorage is ~5MB for the whole origin. A large roster across 20 milestones is still only tens of KB,
+  but cap the ring and drop the oldest rather than letting a write fail.
+- Restoring is itself destructive — snapshot before restoring, so the ring can be walked back out of.
+- The ring must survive `New event`, otherwise the action most worth undoing is the one that clears its own
+  escape route.
+- Keep it out of `Save file` exports; it is local recovery, not part of the event.
 
 ## Your data stays in your browser
 
