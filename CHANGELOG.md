@@ -94,6 +94,12 @@ load-bearing information.
 
 **The fairness panel explains that it is stale** instead of silently emptying mid-conversation.
 
+### Known gap left open
+
+Destructive actions still have no undo history. A snapshot ring covering `Undo draw`, `New event`, milestone
+delete, ladder reset and roster member delete was the audit's top recommendation and was deliberately not
+built in this pass. Design notes are in the README under *Not built yet*.
+
 ### Smaller
 
 - Ticking someone no longer discards half-typed text, the roster filter, scroll position, or focus.
@@ -139,8 +145,7 @@ each drawing its own winner, and a grand prize derived from participation.
 - Grand-prize eligibility is computed, not hand-checked.
 - Eligibility counts only the milestones the live **actually reached**, so a stream ending early is handled
   without any manual adjustment.
-- Milestones are editable before a draw — rename, re-tier, add, delete, reorder the ladder, rename the grand
-  prize. Ids are stable and separate from labels, so renaming never orphans anyone already ticked in.
+- Milestones are editable before a draw — rename, re-tier, add, delete, rename the grand prize. Ids are stable and separate from labels, so renaming never orphans anyone already ticked in.
 - Prize amounts were removed: rewards are often merch or items, not money.
 
 ---
