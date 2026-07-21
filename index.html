@@ -48,6 +48,11 @@
   }
 
   * { box-sizing: border-box; }
+
+  /* Served standalone there is no host reset, so the browser's default 8px
+     body margin shows as a pale band around the page. Zero it and carry the
+     background on the document itself so no theme leaks white at the edges. */
+  html, body { margin: 0; padding: 0; background: var(--paper); }
   /* `hidden` only carries UA weight; any class setting display would beat it. */
   [hidden] { display: none !important; }
 
