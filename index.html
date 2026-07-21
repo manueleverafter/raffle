@@ -955,7 +955,7 @@
           'This event was written by a newer build of Draw than the one you are running. Open the newer copy, or load an older backup.');
         return;
       }
-      adopt(upgraded);
+      adopt(sanitize(upgraded));
     } catch (e) {
       showAlert('Previous event could not be read',
         'The saved data was not in a usable shape. Starting fresh \u2014 load a backup file if you have one.');
@@ -1477,6 +1477,10 @@
       const count = m.id === 'mvp' ? mvpEligible().length : participants(m.id).length;
       if (res && res.winner) { st.textContent = res.winner; st.classList.add('won'); }
       else if (count) { st.textContent = count + ' in'; st.classList.add('ready'); }
+      else if (m.id !== 'mvp' && got.some(x => x.id === m.id)) {
+        // counted as reached by the header, so do not call it 'not reached'
+        st.textContent = 'in progress'; st.classList.add('ready');
+      }
       else st.textContent = m.id === 'mvp' ? 'derived' : 'not reached';
 
       btn.append(lbl, chip, st);
@@ -2134,10 +2138,11 @@
 
   $('resetBtn').addEventListener('click', async () => {
     const ok = await ask('Start a new event',
-      'Clears the roster, every milestone tick, and every winner. Save a file first if you want this event back. There is no undo.',
+      'Clears the roster, every milestone tick, every winner, and resets the skip rules. Your event name and grand-prize name are kept. Save a file first if you want this event back - there is no undo.',
       'Clear everything');
     if (!ok) return;
     state.roster = []; state.results = {};
+    state.skipScope = { minor: false, major: false, mvp: false };
     state.milestones = defaultLadder();
     state.sel = state.milestones[0].id;
     save(); render();
