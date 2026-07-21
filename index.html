@@ -247,6 +247,9 @@
     padding: 7px 9px; border-radius: 3px; background: var(--sunk); font-size: 13px;
   }
   .elig-row.out { background: transparent; }
+  .elig-row.held { background: transparent; opacity: .8; }
+  .elig-row.held .elig-score { color: var(--major); }
+  .elig-row.held .elig-name { color: var(--muted); text-decoration: line-through; }
   .elig-name { font-family: var(--mono); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .elig-row.out .elig-name { color: var(--faint); }
   .elig-score { font-family: var(--mono); font-size: 10.5px; font-variant-numeric: tabular-nums; color: var(--faint); }
@@ -333,6 +336,9 @@
   .toggle-copy { display: flex; flex-direction: column; gap: 3px; }
   .toggle-copy strong { font-size: 13px; font-weight: 600; }
   .toggle-copy small { font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+  .toggle[data-tier="minor"] { --tier: var(--minor); }
+  .toggle[data-tier="major"] { --tier: var(--major); }
+  .toggle[data-tier="mvp"]   { --tier: var(--mvp); }
 
   /* ---------- results ---------- */
   .stubs { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; padding: 2px; }
@@ -481,12 +487,29 @@
       <div class="card">
         <div class="card-head"><h2>Rules</h2></div>
         <div class="card-body">
-          <label class="toggle">
-            <input type="checkbox" id="skipToggle" />
+          <p class="hint">Once someone has won anything, keep them off these wheels. Set it per tier &mdash; not every event runs the same way.</p>
+          <label class="toggle" data-tier="minor">
+            <input type="checkbox" id="skipMinor" />
             <span class="track"></span>
             <span class="toggle-copy">
-              <strong>Skip people who already won</strong>
-              <small id="skipNote"></small>
+              <strong>Minor milestones</strong>
+              <small id="noteMinor"></small>
+            </span>
+          </label>
+          <label class="toggle" data-tier="major">
+            <input type="checkbox" id="skipMajor" />
+            <span class="track"></span>
+            <span class="toggle-copy">
+              <strong>Major milestones</strong>
+              <small id="noteMajor"></small>
+            </span>
+          </label>
+          <label class="toggle" data-tier="mvp">
+            <input type="checkbox" id="skipMvp" />
+            <span class="track"></span>
+            <span class="toggle-copy">
+              <strong id="skipMvpLabel">Grand prize</strong>
+              <small id="noteMvp"></small>
             </span>
           </label>
         </div>
@@ -609,7 +632,7 @@
     roster: [],              // { name, in: { <milestoneId>: true } }
     results: {},             // <id|'mvp'> -> { winner, declined: [] }
     sel: 'm50',
-    skipWinners: false,
+    skipScope: { minor: false, major: false, mvp: false },
   };
 
   let editingLadder = false;
@@ -664,7 +687,7 @@
     const dk = new Set(declined.map(key));
     let names = (isMvp() ? mvpEligible() : participants(sel)).map(r => r.name);
     names = names.filter(n => !dk.has(key(n)));
-    if (state.skipWinners) {
+    if (state.skipScope[tierOf()]) {
       const won = new Set(winnersList().filter(w => w.id !== sel).map(w => key(w.winner)));
       names = names.filter(n => !won.has(key(n)));
     }
@@ -698,7 +721,12 @@
     if (typeof s.eventName === 'string') state.eventName = s.eventName;
     if (typeof s.mvpLabel === 'string') state.mvpLabel = s.mvpLabel;
     if (['auto', 'light', 'dark'].includes(s.theme)) state.theme = s.theme;
-    if (typeof s.skipWinners === 'boolean') state.skipWinners = s.skipWinners;
+    if (typeof s.skipWinners === 'boolean') {   // pre-per-tier saves
+      state.skipScope = { minor: s.skipWinners, major: s.skipWinners, mvp: s.skipWinners };
+    }
+    if (s.skipScope && typeof s.skipScope === 'object') {
+      ['minor','major','mvp'].forEach(t => { state.skipScope[t] = !!s.skipScope[t]; });
+    }
     if (typeof s.sel === 'string') state.sel = s.sel;
     if (state.sel !== 'mvp' && !msById(state.sel)) state.sel = (state.milestones[0] || {}).id || 'mvp';
   }
@@ -1229,20 +1257,43 @@
         body.appendChild(p);
         return;
       }
+      /* The skip rule applies to this wheel too, so someone can qualify on
+         participation and still not be drawable. Say which, rather than
+         printing ELIGIBLE beside a name that cannot actually be picked. */
+      const heldBy = new Map();
+      if (state.skipScope.mvp) {
+        winnersList().filter(w => w.id !== 'mvp').forEach(w => {
+          const k = key(w.winner);
+          if (!heldBy.has(k)) heldBy.set(k, (msById(w.id) || {}).label || w.id);
+        });
+      }
+
       const list = document.createElement('div');
       list.className = 'elig';
       rows.forEach(r => {
+        const qualifies = r.hits === got.length;
+        const held = qualifies && heldBy.has(key(r.name));
         const row = document.createElement('div');
-        row.className = 'elig-row' + (r.hits === got.length ? '' : ' out');
+        row.className = 'elig-row' + (qualifies ? '' : ' out') + (held ? ' held' : '');
         const nm = document.createElement('span');
         nm.className = 'elig-name'; nm.textContent = r.name;
         const sc = document.createElement('span');
         sc.className = 'elig-score';
-        sc.textContent = r.hits + '/' + got.length + (r.hits === got.length ? '  ELIGIBLE' : '');
+        sc.textContent = r.hits + '/' + got.length +
+          (held ? '  HELD \u2014 WON ' + heldBy.get(key(r.name)) : qualifies ? '  ELIGIBLE' : '');
         row.append(nm, sc);
         list.appendChild(row);
       });
       body.appendChild(list);
+
+      const heldCount = rows.filter(r => r.hits === got.length && heldBy.has(key(r.name))).length;
+      if (heldCount) {
+        const note = document.createElement('p');
+        note.className = 'hint';
+        note.textContent = heldCount + ' qualify on participation but are off this wheel because they ' +
+          'already won. Turn off the grand-prize rule below to put them back.';
+        body.appendChild(note);
+      }
       const pb = passedBlock();
       if (pb) body.appendChild(pb);
       return;
@@ -1451,6 +1502,17 @@
     const bits = [];
     if (names.length) bits.push(names.length + ' on the wheel', '1 in ' + names.length + ' odds');
     if (declined.length) bits.push(declined.length + ' passed');
+
+    // Account for anyone the skip rule is holding back, so the count on the
+    // wheel never differs from the participant list without explanation.
+    if (state.skipScope[tierOf()]) {
+      const won = new Set(winnersList().filter(w => w.id !== state.sel).map(w => key(w.winner)));
+      const held = (isMvp() ? mvpEligible() : participants(state.sel))
+        .map(r => r.name)
+        .filter(n => !declined.some(d => key(d) === key(n)))
+        .filter(n => won.has(key(n))).length;
+      if (held) bits.push(held + ' held (already won)');
+    }
     $('stageMeta').textContent = settled ? '' : bits.join('  ' + DOT + '  ');
 
     $('fairOut').innerHTML = '';
@@ -1513,10 +1575,16 @@
   function render() {
     root.style.setProperty('--tier', 'var(' + cssVarFor(tierOf()) + ')');
     $('eventName').value = state.eventName;
-    $('skipToggle').checked = state.skipWinners;
-    $('skipNote').textContent = state.skipWinners
-      ? 'On \u2014 anyone holding a prize is left off later wheels.'
-      : 'Off \u2014 everyone stays in every wheel they qualify for.';
+    $('skipMvpLabel').textContent = state.mvpLabel || 'MVP';
+    [['minor', 'skipMinor', 'noteMinor', 'minor wheels'],
+     ['major', 'skipMajor', 'noteMajor', 'major wheels'],
+     ['mvp',   'skipMvp',   'noteMvp',   'this wheel']].forEach(([t, box, note, where]) => {
+      const on = !!state.skipScope[t];
+      $(box).checked = on;
+      $(note).textContent = on
+        ? 'On \u2014 past winners are left off ' + where + '.'
+        : 'Off \u2014 past winners can still be drawn here.';
+    });
     renderLadder();
     renderParticipants();
     renderStage();
@@ -1567,7 +1635,12 @@
   $('undoBtn').addEventListener('click', undoDraw);
 
   $('eventName').addEventListener('input', e => { state.eventName = e.target.value; save(); });
-  $('skipToggle').addEventListener('change', e => { state.skipWinners = e.target.checked; save(); render(); });
+  [['minor', 'skipMinor'], ['major', 'skipMajor'], ['mvp', 'skipMvp']].forEach(([t, box]) => {
+    $(box).addEventListener('change', e => {
+      state.skipScope[t] = e.target.checked;
+      save(); render();
+    });
+  });
 
   $('fairBtn').addEventListener('click', () => {
     const names = pool(), out = $('fairOut');
