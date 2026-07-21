@@ -125,6 +125,9 @@ on that wheel.
 Wherever the rule is hiding people, the wheel says so — `3 held (already won)` — and the eligibility list
 marks them `HELD — WON 50K` rather than showing them as available.
 
+Names are separated by line breaks or semicolons. Commas do **not** split, so `Doe, Jane` stays one person
+rather than becoming two entrants each holding their own odds.
+
 ## Running it yourself
 
 One file, no build step, no dependencies, no network calls. Either:
@@ -141,33 +144,49 @@ This copy is served with `robots.txt` and a `noindex` tag, so it stays out of se
 
 Things that broke during development and are easy to reintroduce.
 
-**Escape non-ASCII characters in JavaScript.** Write `'—'`, not `'—'`. When the file is served without
-an explicit charset the browser may read it as windows-1252 and render `â€"`. HTML entities like `&mdash;`
-are fine in markup; the hazard is string literals in the script.
+**One account of who is on a wheel.** `poolBreakdown()` returns the survivors *and* the reasons anyone was
+removed (passed, held by the skip rule). Every surface that draws, counts, or explains the wheel reads it.
+The same rule used to be written out three times and they drifted, which is how the UI kept claiming names
+were available after filtering them out. Do not add a fourth copy.
+
+**Freeze the wheel while it turns.** `currentWheel()` returns `frozenWheel` during a spin and `spin()`
+captures the milestone up front. Without both, a change mid-spin reshuffles the segments under the running
+animation and the pointer lands on somebody other than the name announced.
+
+**Escape non-ASCII characters in JavaScript.** Write the escape, not the character. Served without an
+explicit charset the browser may read the file as windows-1252 and render mojibake. HTML entities are fine
+in markup; the hazard is string literals in the script.
 
 **`[hidden]` needs `!important`.** The attribute only carries user-agent weight, so any class setting
-`display` silently overrides it and the element stays visible. There is a global rule near the top handling
-this — keep it.
+`display` silently overrides it. There is a global rule near the top — keep it.
 
-**`requestAnimationFrame` pauses in background tabs.** A spin started before an alt-tab would otherwise
-hang forever with the button stuck disabled. `finish()` is idempotent and reachable three ways: the
-animation ending, a `visibilitychange`, or a guard timer.
+**`requestAnimationFrame` pauses in background tabs.** `finish()` is idempotent and reachable three ways:
+the animation ending, a `visibilitychange`, or a guard timer.
 
-**Standalone pages get no CSS reset.** Embedded hosts often inject one; served raw, the browser's default
-8px body margin shows as a pale band at every edge. `html, body` carry their own margin reset and
-background for this reason.
+**Standalone pages get no CSS reset and no meta tags.** `html, body` carry their own margin reset and
+background, and the viewport and robots tags are injected at runtime — a `meta` in body is ignored, and the
+artifact host supplies its own document head.
 
-**Canvas does not restyle itself.** Colors are read at paint time, so any theme change has to trigger a
-redraw — there is a `MutationObserver` on `data-theme` plus a `prefers-color-scheme` listener.
+**Canvas does not restyle itself.** Colors are read at paint time, so a theme change triggers a redraw via
+a `MutationObserver` on `data-theme` plus a `prefers-color-scheme` listener. The canvas is also invisible to
+screen readers, so `draw()` maintains an `aria-label` naming who is on the wheel.
 
-**Sandboxed frames block `confirm()` and `navigator.clipboard`.** Both fail silently, which reads as a dead
-button. Confirmations go through the in-page dialog (`ask()`), and copying falls back to a hidden textarea.
+**Sandboxed frames block `confirm()` and `navigator.clipboard`.** Both fail silently. Confirmations go
+through `ask()`, and copying falls back to a hidden textarea.
 
-**Milestone ids are not labels.** Ticks are keyed by a stable id so renaming a milestone does not orphan the
-people already in it. Keep them separate.
+**Storage failure must be loud.** `save()` reads back what it wrote; a failure raises a banner offering an
+export. It used to swallow every error, so an entire event could be run in the belief it was saved.
 
-**Colour tokens are calibrated per background.** `--line` is tuned for borders on the panel background;
-drawn on the darker page background the same value has far more contrast. That is what `--ring` is for.
+**Migrations are append-only.** The key never changes; the version lives in the payload. Add a function to
+`MIGRATIONS`, bump `SCHEMA`, never edit an existing entry.
+
+**Milestone ids are not labels.** Ticks are keyed by a stable id so renaming never orphans anyone.
+
+**Colour tokens are calibrated per background.** `--line` is tuned for borders on panels; `--ring` exists
+because the same value has far more contrast on the darker page background.
+
+**`reached()` is memoized per render pass.** It was recomputed once per roster row, which made a large
+roster lag while typing.
 
 ## License
 

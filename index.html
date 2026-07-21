@@ -7,7 +7,7 @@
     --line:    #D2DBE1;
     --text:    #16222B;
     --muted:   #61727E;
-    --faint:   #8C9BA6;
+    --faint:   #5F7180;
 
     --minor:   #2E6A96;
     --major:   #C13B2F;
@@ -41,7 +41,7 @@
   }
   :root[data-theme="light"] {
     --paper: #EEF1F3; --panel: #FFFFFF; --sunk: #E4E9ED; --line: #D2DBE1;
-    --text:  #16222B; --muted: #61727E; --faint: #8C9BA6;
+    --text:  #16222B; --muted: #61727E; --faint: #5F7180;
     --minor: #2E6A96; --major: #C13B2F; --mvp: #9A6B12; --ok: #2E7D52;
     --ring: #DFE5EA;
     --shadow: 0 1px 2px rgba(16,34,46,.06), 0 8px 24px rgba(16,34,46,.07);
@@ -645,7 +645,36 @@
     document.head.appendChild(meta);
   }
 
-  const KEY = 'draw.milestone.v2';
+  /* ---------- storage schema ----------
+     The key never changes again; the version travels inside the payload.
+     To evolve the shape: append a function to MIGRATIONS, bump SCHEMA, and
+     never edit an existing entry. Entry i upgrades a plain object from
+     version i to i+1, so old files keep opening and the list doubles as the
+     changelog. */
+  const KEY = 'draw.milestone';
+  const LEGACY_KEYS = ['draw.milestone.v2'];
+  const SCHEMA = 3;
+
+  const MIGRATIONS = {
+    1: s => {                                    // single skip flag -> per tier
+      const w = !!s.skipWinners;
+      delete s.skipWinners;
+      s.skipScope = { minor: w, major: w, mvp: w };
+      return s;
+    },
+    2: s => {                                    // grand prize became a row
+      s.derived = [{ id: 'mvp', label: s.mvpLabel || 'MVP', rule: 'all-reached' }];
+      return s;
+    },
+  };
+
+  function migrate(s) {
+    let v = Number(s.v) || (s.skipScope ? 2 : 1);
+    if (v > SCHEMA) return null;                 // written by a newer build
+    while (v < SCHEMA) { s = MIGRATIONS[v](s); v++; }
+    s.v = SCHEMA;
+    return s;
+  }
   const DOT = '\u00B7';
 
   /* ---------- randomness ----------
@@ -738,7 +767,11 @@
   /* A milestone counts as reached once anyone submitted for it or it was
      drawn. If the live stops at 600K, everything above simply never becomes
      reached, and MVP is judged only on what actually happened. */
-  const reached = () => state.milestones.filter(m => participants(m.id).length > 0 || state.results[m.id]);
+  /* Recomputed once per render pass rather than once per roster row -
+     it was the R^2 term that made a large roster lag while typing. */
+  let reachedCache = null;
+  const reached = () => reachedCache ||
+    (reachedCache = state.milestones.filter(m => participants(m.id).length > 0 || state.results[m.id]));
 
   function mvpEligible() {
     const got = reached();
@@ -808,6 +841,8 @@
     if (str(o.mvpLabel)) out.mvpLabel = o.mvpLabel;
     if (['auto', 'light', 'dark'].includes(o.theme)) out.theme = o.theme;
     if (Number.isFinite(o.rev)) out.rev = o.rev;
+    if (Number.isFinite(o.v)) out.v = o.v;
+    if (Array.isArray(o.derived)) out.derived = o.derived;
 
     out.milestones = (Array.isArray(o.milestones) ? o.milestones : [])
       .filter(m => m && str(m.id) && str(m.label))
@@ -876,9 +911,11 @@
   let storageOk = true, readOnly = false;
 
   function save() {
+    reachedCache = null;
     if (readOnly) return;              // another tab owns this event now
     try {
       state.rev = (state.rev || 0) + 1;
+      state.v = SCHEMA;
       const text = JSON.stringify(state);
       localStorage.setItem(KEY, text);
       if (localStorage.getItem(KEY) !== text) throw new Error('read-back mismatch');
@@ -892,7 +929,14 @@
   }
 
   function load() {
-    const raw = localStorage.getItem(KEY);
+    let raw = localStorage.getItem(KEY);
+    if (!raw) {
+      // carry a pre-versioned save forward instead of orphaning it
+      for (const k of LEGACY_KEYS) {
+        const old = localStorage.getItem(k);
+        if (old) { raw = old; break; }
+      }
+    }
     if (!raw) return;
     let s = null;
     try { s = JSON.parse(raw); } catch (e) { s = null; }
@@ -904,7 +948,15 @@
         'The saved data was damaged and has been set aside rather than overwritten. Starting fresh \u2014 load a backup file if you have one.');
       return;
     }
-    try { adopt(s); } catch (e) {
+    try {
+      const upgraded = migrate(s);
+      if (!upgraded) {
+        showAlert('Saved by a newer version',
+          'This event was written by a newer build of Draw than the one you are running. Open the newer copy, or load an older backup.');
+        return;
+      }
+      adopt(upgraded);
+    } catch (e) {
       showAlert('Previous event could not be read',
         'The saved data was not in a usable shape. Starting fresh \u2014 load a backup file if you have one.');
     }
@@ -926,6 +978,9 @@
     if (s.results && typeof s.results === 'object') state.results = s.results;
     if (typeof s.eventName === 'string') state.eventName = s.eventName;
     if (typeof s.mvpLabel === 'string') state.mvpLabel = s.mvpLabel;
+    if (Array.isArray(s.derived) && s.derived[0] && typeof s.derived[0].label === 'string') {
+      state.mvpLabel = s.derived[0].label;
+    }
     if (['auto', 'light', 'dark'].includes(s.theme)) state.theme = s.theme;
     if (Number.isFinite(s.rev)) state.rev = s.rev;
     if (typeof s.skipWinners === 'boolean') {   // pre-per-tier saves
@@ -972,6 +1027,13 @@
   function draw() {
     if (!cssSize) return;
     const names = currentWheel();
+
+    /* The canvas is opaque to a screen reader, so describe it in words. */
+    const wheelName = isMvp() ? (state.mvpLabel || 'MVP') : ((msById(state.sel) || {}).label || '');
+    canvas.setAttribute('aria-label', names.length
+      ? wheelName + ' wheel, ' + names.length + ' name' + (names.length === 1 ? '' : 's') + ': ' +
+        names.slice(0, 10).join(', ') + (names.length > 10 ? ', and ' + (names.length - 10) + ' more' : '')
+      : wheelName + ' wheel, nobody on it');
     const cx = cssSize / 2, cy = cssSize / 2, r = cssSize / 2 - 8;
     const base = accent(), dark = isDark();
     const bands = dark
@@ -1067,7 +1129,7 @@
 
     const start = rotation, dur = reduce ? 700 : 5200;
     const t0 = performance.now();
-    let lastSeg = -1, done = false, guard = 0;
+    let lastSeg = -1, done = false, guard = 0, lastTick = 0;
 
     /* Browsers pause requestAnimationFrame while a tab is hidden, so a spin
        begun before an alt-tab would hang with the button stuck disabled.
@@ -1090,7 +1152,9 @@
       const p = Math.min(1, (now - t0) / dur);
       rotation = start + delta * (1 - Math.pow(1 - p, 4));
       const cur = Math.floor(rotation / seg);
-      if (cur !== lastSeg && p < 0.985) { lastSeg = cur; tick(); }
+      // Throttle by time as well as by segment, so a large wheel does not
+      // spawn thousands of oscillators during the one animation that matters.
+      if (cur !== lastSeg && p < 0.985 && now - lastTick > 45) { lastSeg = cur; lastTick = now; tick(); }
       draw();
       if (p < 1) requestAnimationFrame(frame); else finish();
     }
@@ -1232,9 +1296,24 @@
   }
 
   /* ---------- dialogs / clipboard (sandbox safe) ---------- */
-  let askResolve = null;
+  let askResolve = null, focusBeforeDialog = null;
+
+  /* Keep Tab inside an open dialog and hand focus back on close - both
+     dialogs claimed aria-modal without behaving modally. */
+  function trapFocus(e) {
+    if (e.key !== 'Tab') return;
+    const box = !$('ask').hidden ? $('ask') : (!$('reveal').hidden ? $('reveal') : null);
+    if (!box) return;
+    const items = [...box.querySelectorAll('button:not([hidden])')].filter(b => b.offsetParent);
+    if (!items.length) return;
+    const first = items[0], last = items[items.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+  document.addEventListener('keydown', trapFocus);
   function ask(title, body, okLabel) {
     if (askResolve) settleAsk(false);   // never leave an earlier caller hanging
+    focusBeforeDialog = document.activeElement;
     $('askTitle').textContent = title;
     $('askBody').textContent = body;
     $('askOk').textContent = okLabel;
@@ -1242,7 +1321,12 @@
     $('askCancel').focus();
     return new Promise(res => { askResolve = res; });
   }
-  function settleAsk(v) { $('ask').hidden = true; if (askResolve) { askResolve(v); askResolve = null; } }
+  function settleAsk(v) {
+    $('ask').hidden = true;
+    if (focusBeforeDialog && focusBeforeDialog.isConnected) focusBeforeDialog.focus();
+    focusBeforeDialog = null;
+    if (askResolve) { askResolve(v); askResolve = null; }
+  }
   $('askOk').addEventListener('click', () => settleAsk(true));
   $('askCancel').addEventListener('click', () => settleAsk(false));
   $('ask').addEventListener('click', e => { if (e.target === $('ask')) settleAsk(false); });
@@ -1399,6 +1483,7 @@
       btn.addEventListener('click', () => {
         if (spinning || state.sel === m.id) return;
         state.sel = m.id;
+        $('live').textContent = 'Now on ' + m.label;
         rosterFilter = '';          // a new milestone is a fresh search
         rosterScroll = 0;
         save(); render();
@@ -1591,7 +1676,8 @@
     list.className = 'roster';
     body.appendChild(list);
 
-    const got = reached().length;
+    const reachedRows = reached();
+    const got = reachedRows.length;
     const paint = () => {
       const q = filter.value.trim().toLowerCase();
       list.innerHTML = '';
@@ -1664,7 +1750,7 @@
 
         const tally = document.createElement('span');
         tally.className = 'r-tally';
-        const hits = reached().filter(x => r.in[x.id]).length;
+        const hits = reachedRows.filter(x => r.in[x.id]).length;
         if (got) {
           tally.textContent = hits + '/' + got;
           if (hits === got) tally.classList.add('full');
@@ -1765,7 +1851,13 @@
     if (bd.held.length) bits.push(bd.held.length + ' held (already won)');
     $('stageMeta').textContent = settled ? '' : bits.join('  ' + DOT + '  ');
 
-    $('fairOut').innerHTML = '';
+    if ($('fairOut').childElementCount) {
+      $('fairOut').innerHTML = '';
+      const stale = document.createElement('p');
+      stale.className = 'hint';
+      stale.textContent = 'The wheel changed - run the check again for current numbers.';
+      $('fairOut').appendChild(stale);
+    }
     $('fairMeta').textContent = '';
   }
 
@@ -1823,6 +1915,7 @@
   }
 
   function render() {
+    reachedCache = null;
     root.style.setProperty('--tier', 'var(' + cssVarFor(tierOf()) + ')');
     $('eventName').value = state.eventName;
     $('skipMvpLabel').textContent = state.mvpLabel || 'MVP';
@@ -2010,6 +2103,12 @@
     /* Coerce every field to the shape the app expects. A hand-edited or
        truncated backup used to be written to storage before anything tried
        to render it, so a bad file bricked the app on every later load. */
+    parsed = migrate(parsed);
+    if (!parsed) {
+      await ask('Saved by a newer version',
+        'That backup was written by a newer build of Draw than this one, so it cannot be opened safely here.', 'Got it');
+      return;
+    }
     parsed = sanitize(parsed);
     const drawn = Object.values(parsed.results || {}).filter(r => r && r.winner).length;
     const ok = await ask('Load this backup?',
@@ -2057,7 +2156,10 @@
     }
   });
 
-  addEventListener('resize', resize);
+  addEventListener('resize', () => {
+    resize();
+    if (!cc.hidden) { cc.width = innerWidth; cc.height = innerHeight; }
+  });
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', draw);
   new MutationObserver(draw).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
 
