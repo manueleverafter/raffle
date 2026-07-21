@@ -13,6 +13,7 @@
     --major:   #C13B2F;
     --mvp:     #9A6B12;
     --ok:      #2E7D52;
+    --ring:    #DFE5EA;
 
     --tier:    var(--minor);
     --shadow:  0 1px 2px rgba(16,34,46,.06), 0 8px 24px rgba(16,34,46,.07);
@@ -27,6 +28,7 @@
       --paper: #0D161D; --panel: #14212B; --sunk: #0F1B23; --line: #21323F;
       --text:  #E6EDF2; --muted: #8CA0AE; --faint: #64798A;
       --minor: #63A5D4; --major: #F0685A; --mvp: #E0AC49; --ok: #4FBF85;
+      --ring: #16232D;
       --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
     }
   }
@@ -34,12 +36,14 @@
     --paper: #0D161D; --panel: #14212B; --sunk: #0F1B23; --line: #21323F;
     --text:  #E6EDF2; --muted: #8CA0AE; --faint: #64798A;
     --minor: #63A5D4; --major: #F0685A; --mvp: #E0AC49; --ok: #4FBF85;
+    --ring: #16232D;
     --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
   }
   :root[data-theme="light"] {
     --paper: #EEF1F3; --panel: #FFFFFF; --sunk: #E4E9ED; --line: #D2DBE1;
     --text:  #16222B; --muted: #61727E; --faint: #8C9BA6;
     --minor: #2E6A96; --major: #C13B2F; --mvp: #9A6B12; --ok: #2E7D52;
+    --ring: #DFE5EA;
     --shadow: 0 1px 2px rgba(16,34,46,.06), 0 8px 24px rgba(16,34,46,.07);
   }
 
@@ -722,7 +726,7 @@
     if (!names.length) {
       ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.setLineDash([7, 7]);
-      ctx.strokeStyle = getComputedStyle(root).getPropertyValue('--line').trim();
+      ctx.strokeStyle = getComputedStyle(root).getPropertyValue('--ring').trim();
       ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([]);
       return;
     }
