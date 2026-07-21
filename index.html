@@ -65,6 +65,34 @@
     display: flex; flex-direction: column; gap: 18px;
   }
 
+  /* ---------- alert bar ---------- */
+  .alert {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--major); color: #fff;
+    border-radius: 4px; padding: 12px 14px;
+    box-shadow: var(--shadow);
+  }
+  .alert-mark {
+    flex: none; width: 22px; height: 22px; border-radius: 50%;
+    display: grid; place-items: center;
+    background: rgba(255,255,255,.22);
+    font-family: var(--display); font-size: 13px;
+  }
+  .alert-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .alert-copy strong {
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: .1em; text-transform: uppercase;
+  }
+  .alert-copy span { font-size: 13px; line-height: 1.45; }
+  .alert .btn {
+    margin-left: auto; flex: none;
+    background: #fff; color: var(--major); border-color: #fff; font-weight: 600;
+  }
+  .alert .btn:hover { background: #fff; filter: brightness(.94); }
+
+  /* The rail is inert while the wheel is turning — see the spin lock. */
+  .rail.locked { pointer-events: none; opacity: .55; }
+
   /* ---------- masthead ---------- */
   .masthead {
     display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
@@ -413,6 +441,31 @@
 
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
+  /* ---------- phones ----------
+     Now that the viewport meta lets this breakpoint fire, make what it
+     reveals workable rather than a shrunken desktop. */
+  @media (max-width: 940px) {
+    /* iOS zooms the page whenever a focused field is under 16px. */
+    textarea, input[type="text"], input[type="search"], #eventName { font-size: 16px; }
+
+    /* Keep the wheel and the Spin button on one screen. */
+    .wheel-frame { max-width: min(500px, 56vh); }
+
+    /* Work happens in the rail, so lead with it and scroll to the wheel. */
+    .shell { gap: 16px; }
+    .rail { order: -1; }
+
+    /* Inner scroll regions inside a scrolling page are a touch trap. */
+    .ladder, .roster, .stubs, .elig { max-height: none; }
+
+    /* 28px destructive buttons sit next to the roster toggles. */
+    .icon-btn { width: 40px; height: 40px; }
+
+    #eventName { min-width: 0; flex: 1 1 140px; }
+    .masthead-end { width: 100%; }
+    .masthead-end .btn { flex: 1 1 auto; }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .reveal-card { animation: none; }
     .spin-btn, .btn, .ms, .track, .track::after { transition: none; }
@@ -420,6 +473,15 @@
 </style>
 
 <div class="app">
+  <div class="alert" id="alert" hidden role="alert">
+    <span class="alert-mark" aria-hidden="true">!</span>
+    <span class="alert-copy">
+      <strong id="alertTitle"></strong>
+      <span id="alertBody"></span>
+    </span>
+    <button class="btn" id="alertAction" type="button" hidden></button>
+  </div>
+
   <header class="masthead">
     <h1 class="wordmark">Draw<span>.</span></h1>
     <input type="text" id="eventName" value="Tap Tap Event" aria-label="Event name" />
@@ -466,7 +528,7 @@
       <p class="sr-only" role="status" aria-live="polite" id="live"></p>
     </section>
 
-    <aside class="rail">
+    <aside class="rail" id="rail">
       <div class="card">
         <div class="card-head">
           <h2>Milestones</h2>
@@ -570,6 +632,12 @@
 
   /* Keep the hosted copy out of search results. robots.txt handles crawlers
      that never run scripts; this covers renderers that do. */
+  if (!document.querySelector('meta[name="viewport"]')) {
+    const vp = document.createElement('meta');
+    vp.name = 'viewport';
+    vp.content = 'width=device-width, initial-scale=1';
+    document.head.appendChild(vp);
+  }
   if (!document.querySelector('meta[name="robots"]')) {
     const meta = document.createElement('meta');
     meta.name = 'robots';
@@ -698,22 +766,142 @@
   const cssVarFor = t => t === 'major' ? '--major' : t === 'mvp' ? '--mvp' : '--minor';
 
   /* ---------- wheel order (cosmetic reshuffle) ---------- */
-  let wheelOrder = [], wheelSig = null;
+  let wheelOrder = [], wheelSig = null, frozenWheel = null;
+
+  /* While the wheel is turning its contents are frozen. Without this, any
+     change to the pool mid-spin reshuffles the segments under the running
+     animation and the pointer comes to rest on somebody other than the name
+     that was actually drawn. */
   function currentWheel(reshuffle) {
+    if (frozenWheel) return frozenWheel;
     const names = pool();
     const sig = state.sel + '|' + names.map(key).join(' ');
     if (reshuffle || sig !== wheelSig) { wheelOrder = shuffled(names); wheelSig = sig; }
     return wheelOrder;
   }
 
-  /* ---------- persistence ---------- */
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
-  function load() {
-    try {
-      const s = JSON.parse(localStorage.getItem(KEY) || 'null');
-      if (s && typeof s === 'object') adopt(s);
-    } catch (e) {}
+  /* Reduce an untrusted object to the shape the app can render. Anything
+     that is not the right type is dropped rather than repaired, so a bad
+     field costs one row instead of the whole event. */
+  function sanitize(o) {
+    const str = v => (typeof v === 'string' && v.trim()) ? v.trim() : null;
+    const out = {};
+    if (str(o.eventName)) out.eventName = o.eventName;
+    if (str(o.mvpLabel)) out.mvpLabel = o.mvpLabel;
+    if (['auto', 'light', 'dark'].includes(o.theme)) out.theme = o.theme;
+    if (Number.isFinite(o.rev)) out.rev = o.rev;
+
+    out.milestones = (Array.isArray(o.milestones) ? o.milestones : [])
+      .filter(m => m && str(m.id) && str(m.label))
+      .map(m => ({
+        id: m.id.trim(),
+        label: m.label.trim(),
+        tier: m.tier === 'major' ? 'major' : 'minor',
+      }));
+
+    const ids = new Set(out.milestones.map(m => m.id));
+    out.roster = (Array.isArray(o.roster) ? o.roster : [])
+      .filter(r => r && str(r.name))
+      .map(r => {
+        const marks = {};
+        if (r.in && typeof r.in === 'object') {
+          Object.keys(r.in).forEach(k => { if (ids.has(k) && r.in[k]) marks[k] = true; });
+        }
+        return { name: r.name.trim(), in: marks };
+      });
+
+    out.results = {};
+    if (o.results && typeof o.results === 'object') {
+      Object.keys(o.results).forEach(k => {
+        if (k !== 'mvp' && !ids.has(k)) return;      // drop orphaned results
+        const v = o.results[k];
+        if (!v || typeof v !== 'object') return;
+        out.results[k] = {
+          winner: str(v.winner) || null,
+          declined: (Array.isArray(v.declined) ? v.declined : []).filter(str).map(d => d.trim()),
+          at: Number.isFinite(v.at) ? v.at : undefined,
+        };
+      });
+    }
+
+    out.skipScope = { minor: false, major: false, mvp: false };
+    if (o.skipScope && typeof o.skipScope === 'object') {
+      ['minor', 'major', 'mvp'].forEach(t => { out.skipScope[t] = !!o.skipScope[t]; });
+    } else if (typeof o.skipWinners === 'boolean') {
+      out.skipScope = { minor: o.skipWinners, major: o.skipWinners, mvp: o.skipWinners };
+    }
+
+    out.sel = (o.sel === 'mvp' || ids.has(o.sel)) ? o.sel
+            : (out.milestones[0] ? out.milestones[0].id : 'mvp');
+    return out;
   }
+
+  /* ---------- alerts ---------- */
+  function showAlert(title, body, actionLabel, onAction) {
+    const box = $('alert');
+    if (!title) { box.hidden = true; return; }
+    $('alertTitle').textContent = title;
+    $('alertBody').textContent = body;
+    const btn = $('alertAction');
+    btn.hidden = !actionLabel;
+    if (actionLabel) {
+      btn.textContent = actionLabel;
+      btn.onclick = onAction;
+    }
+    box.hidden = false;
+  }
+
+  /* ---------- persistence ----------
+     Writing used to fail silently, so a whole event could be run in the
+     belief it was saved. Every write is now read back, and a failure raises
+     a banner that stays up until a save succeeds. */
+  let storageOk = true, readOnly = false;
+
+  function save() {
+    if (readOnly) return;              // another tab owns this event now
+    try {
+      state.rev = (state.rev || 0) + 1;
+      const text = JSON.stringify(state);
+      localStorage.setItem(KEY, text);
+      if (localStorage.getItem(KEY) !== text) throw new Error('read-back mismatch');
+      if (!storageOk) { storageOk = true; showAlert(null); }
+    } catch (e) {
+      storageOk = false;
+      showAlert('Not saving',
+        'This browser is refusing to store the event, so nothing since your last export will survive a refresh. Export a file now and keep going from that.',
+        'Save file', () => $('saveBtn').click());
+    }
+  }
+
+  function load() {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return;
+    let s = null;
+    try { s = JSON.parse(raw); } catch (e) { s = null; }
+    if (!s || typeof s !== 'object') {
+      /* Damaged save: set it aside rather than letting the first click
+         overwrite something that might still be salvageable by hand. */
+      try { localStorage.setItem(KEY + '.damaged.' + Date.now(), raw); } catch (e) {}
+      showAlert('Previous event could not be read',
+        'The saved data was damaged and has been set aside rather than overwritten. Starting fresh \u2014 load a backup file if you have one.');
+      return;
+    }
+    try { adopt(s); } catch (e) {
+      showAlert('Previous event could not be read',
+        'The saved data was not in a usable shape. Starting fresh \u2014 load a backup file if you have one.');
+    }
+  }
+
+  /* A storage event only fires in OTHER tabs. Whichever tab did not make the
+     change stands down instead of overwriting the one that did. */
+  addEventListener('storage', e => {
+    if (e.key !== KEY || readOnly) return;
+    readOnly = true;
+    $('rail').classList.add('locked');
+    showAlert('Changed in another tab',
+      'This event was edited in a different tab or window. To avoid overwriting that work, this tab has stopped saving. Reload to pick up the latest.',
+      'Reload', () => location.reload());
+  });
   function adopt(s) {
     if (Array.isArray(s.milestones) && s.milestones.length) state.milestones = s.milestones;
     if (Array.isArray(s.roster)) state.roster = s.roster.map(r => ({ name: r.name, in: r.in || {} }));
@@ -721,6 +909,7 @@
     if (typeof s.eventName === 'string') state.eventName = s.eventName;
     if (typeof s.mvpLabel === 'string') state.mvpLabel = s.mvpLabel;
     if (['auto', 'light', 'dark'].includes(s.theme)) state.theme = s.theme;
+    if (Number.isFinite(s.rev)) state.rev = s.rev;
     if (typeof s.skipWinners === 'boolean') {   // pre-per-tier saves
       state.skipScope = { minor: s.skipWinners, major: s.skipWinners, mvp: s.skipWinners };
     }
@@ -840,8 +1029,13 @@
     if (!names.length) return;
 
     spinning = true;
+    frozenWheel = names;
+    /* Capture the milestone up front. Even if something slips past the UI
+       lock, the result can only ever land on the milestone that was drawn. */
+    const drawnOn = state.sel;
     $('spinBtn').disabled = true;
     $('shuffleBtn').disabled = true;
+    $('rail').classList.add('locked');
 
     const idx = randomInt(names.length);
     const winner = names[idx];
@@ -867,9 +1061,11 @@
       clearTimeout(guard);
       pendingFinish = null;
       rotation = (start + delta) % (Math.PI * 2);
-      draw();
       spinning = false;
-      record(winner);
+      frozenWheel = null;
+      if (!readOnly) $('rail').classList.remove('locked');
+      draw();
+      record(winner, drawnOn);
     }
     function frame(now) {
       if (done) return;
@@ -888,10 +1084,13 @@
     if (!document.hidden && pendingFinish) pendingFinish();
   });
 
-  function record(name) {
-    const cur = state.results[state.sel] || { winner: null, declined: [] };
+  function record(name, milestoneId) {
+    const id = milestoneId || state.sel;
+    const cur = state.results[id] || { winner: null, declined: [] };
     cur.winner = name;
-    state.results[state.sel] = cur;
+    cur.at = Date.now();               // when the draw happened
+    state.results[id] = cur;
+    state.sel = id;                    // show the milestone that was drawn
     save();
     render();
     showReveal(name);
@@ -944,14 +1143,14 @@
 
   async function undoDraw() {
     const cur = state.results[state.sel];
-    const passed = (cur && cur.declined) || [];
-    if (passed.length) {
-      const ok = await ask('Undo this draw',
-        'Clears the winner and puts the ' + passed.length + ' who passed (' + passed.join(', ') +
-        ') back on the wheel, so ' + selLabel() + ' starts fresh.',
-        'Undo draw');
-      if (!ok) return;
-    }
+    if (!cur || !cur.winner) return;
+    const passed = cur.declined || [];
+    const ok = await ask('Undo the ' + selLabel() + ' draw',
+      'This deletes ' + cur.winner + ' as the winner' +
+      (passed.length ? ' and puts the ' + passed.length + ' who passed (' + passed.join(', ') + ') back on the wheel' : '') +
+      '. There is no way to bring the result back.',
+      'Undo draw');
+    if (!ok) return;
     doUndo();
   }
 
@@ -1175,7 +1374,7 @@
       else st.textContent = m.id === 'mvp' ? 'derived' : 'not reached';
 
       btn.append(lbl, chip, st);
-      btn.addEventListener('click', () => { state.sel = m.id; save(); render(); });
+      btn.addEventListener('click', () => { if (spinning) return; state.sel = m.id; save(); render(); });
       box.appendChild(btn);
     });
   }
@@ -1385,6 +1584,7 @@
       all.textContent = 'Tick all' + scope;
       all.disabled = !rows.length || ticked === rows.length;
       all.addEventListener('click', () => {
+        if (spinning) return;
         rows.forEach(r => { r.in[m.id] = true; });
         save(); render();
         $('live').textContent = rows.length + ' ticked into ' + m.label;
@@ -1395,6 +1595,7 @@
       none.textContent = 'Untick all' + scope;
       none.disabled = !ticked;
       none.addEventListener('click', () => {
+        if (spinning) return;
         rows.forEach(r => { delete r.in[m.id]; });
         save(); render();
         $('live').textContent = 'Cleared ' + m.label;
@@ -1421,6 +1622,7 @@
         nm.className = 'r-name'; nm.textContent = r.name;
         t.append(box, nm);
         t.addEventListener('click', () => {
+          if (spinning) return;
           if (r.in[m.id]) delete r.in[m.id]; else r.in[m.id] = true;
           save(); render();
         });
@@ -1615,6 +1817,7 @@
 
   /* ---------- events ---------- */
   $('editMsBtn').addEventListener('click', () => {
+    if (spinning) return;
     editingLadder = !editingLadder;
     const b = $('editMsBtn');
     b.textContent = editingLadder ? 'Done' : 'Edit';
@@ -1637,6 +1840,7 @@
   $('eventName').addEventListener('input', e => { state.eventName = e.target.value; save(); });
   [['minor', 'skipMinor'], ['major', 'skipMajor'], ['mvp', 'skipMvp']].forEach(([t, box]) => {
     $(box).addEventListener('change', e => {
+      if (spinning) { e.target.checked = state.skipScope[t]; return; }
       state.skipScope[t] = e.target.checked;
       save(); render();
     });
@@ -1754,14 +1958,31 @@
       await ask('Could not read that file', 'That JSON has no roster in it, so it is not a Draw backup.', 'Got it');
       return;
     }
+
+    /* Coerce every field to the shape the app expects. A hand-edited or
+       truncated backup used to be written to storage before anything tried
+       to render it, so a bad file bricked the app on every later load. */
+    parsed = sanitize(parsed);
     const drawn = Object.values(parsed.results || {}).filter(r => r && r.winner).length;
     const ok = await ask('Load this backup?',
       'Replaces everything on screen with "' + (parsed.eventName || 'Untitled') + '" \u2014 ' +
       (parsed.roster.length) + ' in the roster, ' + drawn + ' prizes already drawn. Your current event is not saved anywhere else.',
       'Load it');
     if (!ok) return;
-    adopt(parsed);
-    save(); render();
+
+    // Prove it renders before it is allowed anywhere near storage.
+    const backup = JSON.parse(JSON.stringify(state));
+    try {
+      adopt(parsed);
+      render();
+      save();
+    } catch (err) {
+      adopt(backup);
+      render();
+      await ask('That backup is damaged',
+        'It could not be opened, so nothing was changed and your current event is untouched.',
+        'Got it');
+    }
   });
 
   $('resetBtn').addEventListener('click', async () => {
