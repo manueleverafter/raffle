@@ -52,6 +52,12 @@ passed early may well want back in once the person they stepped aside for gives 
 If everyone has passed and a reroll would leave the wheel empty, the app says so and offers to undo the
 draw instead — which clears the passes and puts the full field back.
 
+### A click you regret
+
+Every destructive action confirms first and names what it will destroy. If you confirm one anyway and
+change your mind, **Restore** puts the whole event back to how it stood immediately before — see
+[Getting something back](#getting-something-back).
+
 ### Editing before you spin
 
 Milestones are not fixed. Rename them, switch minor/major, add or delete, reset to the default ladder, or
@@ -79,62 +85,46 @@ Worth knowing before you rely on it:
 
 - **No sync.** Two people opening the site get two separate events. `Save file` / `Load file` is the only
   bridge between them. A shared live event would need a server, which this deliberately does not have.
-- **One event at a time** per browser. Starting a new one replaces the old, so export first.
+- **One event at a time** per browser. Starting a new one replaces the old — recoverable from the last ten
+  snapshots, but export a file if you need it back next month rather than in the next few minutes.
 - **Storage is the browser's.** Clearing site data wipes the event. Private windows discard it on close.
   If a save ever fails the app now says so loudly, but a browser that quietly evicts storage later is
   outside its control — export after each milestone if the event matters.
 - **The hosted copy and a downloaded copy do not share data.** They are separate origins.
-- **`Undo draw`, `New event`, milestone delete and ladder reset are one-way.** Each confirms first and
-  names what it destroys, but there is no undo history. This is the largest known gap — see
-  [Not built yet](#not-built-yet).
+- **Recovery goes back ten steps, not further.** Every destructive action is snapshotted first (see
+  [Getting something back](#getting-something-back)), but the ring holds ten entries and the eleventh
+  pushes the oldest out. It is also local to the browser — clearing site data takes the snapshots with
+  the event.
 
-## Not built yet
+## Getting something back
 
-### A snapshot ring — recovering from a confirmed click
+A confirmation stops the click you did not mean to make. It does nothing for the one you regret ten seconds
+later — and `Reset the ladder` can erase an evening of draws in a single confirmed action.
 
-**The gap.** Every destructive action in the app is guarded by a confirmation that names what it will
-destroy, and that is where the protection stops. Once confirmed, the data is gone:
+So the app keeps the last **ten snapshots** of the whole event, each written immediately *before* a
+destructive action:
 
-| Action | Destroys |
-| --- | --- |
-| `Undo draw` | one winner |
-| Milestone delete | that milestone's ticks and its result |
-| `Reset the ladder` | every tick and **every winner drawn so far** |
-| `New event` | the roster, every tick, every winner |
-| Roster member delete | that person's ticks across all milestones |
+| Action | Destroys | Snapshot reason |
+| --- | --- | --- |
+| `Undo draw` | one winner | *Before undoing the 250K draw* |
+| Milestone delete | that milestone's ticks and its result | *Before deleting the 250K milestone* |
+| `Reset the ladder` | every tick and **every winner drawn so far** | *Before resetting the ladder* |
+| `New event` | the roster, every tick, every winner | *Before starting a new event* |
+| Roster member delete | that person's ticks across all milestones | *Before removing Ada from the roster* |
+| `Load file` | the entire event it replaces | *Before loading a backup file* |
 
-Confirmations stop the accidental click. They do nothing for the deliberate click you regret ten seconds
-later, and `Reset the ladder` in particular can erase a full evening's draws in one confirmed action.
+**Restore** appears in the masthead as soon as there is something to go back to. Each entry names what was
+about to happen, how long ago, and what the event looked like at the time (`4 names, 1 prize drawn`).
+Restoring takes a snapshot of where you are first, so you can walk back out of it if you picked the wrong
+one.
 
-**Why it is worth building.** It is the single change that would turn every one-way door in the app into a
-recoverable one, and it needs no server — the whole point of the design. It also covers five separate
-failure paths at once, which no other outstanding item comes close to.
+Two things worth knowing about how it is stored:
 
-**Sketch.** Keep the last ~10 states in their own storage key, written immediately *before* any destructive
-action:
-
-```js
-function snapshot(reason) {
-  try {
-    const ring = JSON.parse(localStorage.getItem(KEY + '.ring') || '[]');
-    ring.unshift({ at: Date.now(), reason, state: JSON.parse(JSON.stringify(state)) });
-    localStorage.setItem(KEY + '.ring', JSON.stringify(ring.slice(0, 10)));
-  } catch (e) { /* never let a failed snapshot block the action */ }
-}
-```
-
-Call it at the top of `doUndo()`, the ladder reset, `New event`, milestone delete, and roster member delete,
-passing a human-readable reason (`'before New event'`, `'before deleting 250K'`). Then expose a **Restore**
-list in the masthead showing each entry as *reason + how long ago*, restoring via the existing `adopt()`.
-
-**Watch out for:**
-
-- localStorage is ~5MB for the whole origin. A large roster across 20 milestones is still only tens of KB,
-  but cap the ring and drop the oldest rather than letting a write fail.
-- Restoring is itself destructive — snapshot before restoring, so the ring can be walked back out of.
-- The ring must survive `New event`, otherwise the action most worth undoing is the one that clears its own
-  escape route.
-- Keep it out of `Save file` exports; it is local recovery, not part of the event.
+- The ring lives under its **own storage key**. That is deliberate twice over — it has to survive
+  `New event`, or the action most worth undoing would be the one clearing its own escape route, and it
+  stays out of `Save file`, which exports the event rather than your local recovery history.
+- It holds **ten entries**. The eleventh pushes the oldest out, and if the browser refuses the write the
+  oldest are dropped until it fits rather than losing the newest snapshot.
 
 ## Your data stays in your browser
 
@@ -165,6 +155,7 @@ backup is copied to your clipboard instead.
 | **Fairness check** | 10,000 test draws against the current wheel |
 | **Copy results** | All winners as text, ready to paste into a chat |
 | **Save / Load file** | Export or restore the whole event as JSON |
+| **Restore** | Go back to how the event stood before any of the last 10 destructive actions |
 | **New event** | Clears the roster, every tick, and every winner |
 
 ### Keyboard
@@ -239,6 +230,21 @@ through `ask()`, and copying falls back to a hidden textarea.
 
 **Storage failure must be loud.** `save()` reads back what it wrote; a failure raises a banner offering an
 export. It used to swallow every error, so an entire event could be run in the belief it was saved.
+
+**Snapshot before you destroy, not after.** `snapshot(reason)` must be the first line inside the `if (!ok)
+return;` of a destructive handler — after the confirmation, before the mutation. It swallows its own
+failures on purpose: a browser refusing the write must never block the action the operator asked for.
+Snapshots go through the same `migrate` / `sanitize` path as a save on the way back in, because an entry
+can outlive the build that wrote it.
+
+**The ring key must not trip the other-tab lock.** A `storage` event fires for *any* key on the origin, and
+the handler stands the tab down as soon as it sees the event key. A snapshot write is not another tab
+editing the event, so `RING_KEY` is matched and returned on before that check — miss it and taking a
+snapshot in one tab freezes every other tab into read-only.
+
+**`adopt()` will not take an empty ladder.** The `milestones.length` guard is right for a partial backup
+file and wrong for a snapshot, where a ladder emptied by deleting every milestone is a state the operator
+genuinely had. `restoreSnapshot()` re-applies that case by hand after calling `adopt()`.
 
 **Migrations are append-only.** The key never changes; the version lives in the payload. Add a function to
 `MIGRATIONS`, bump `SCHEMA`, never edit an existing entry.

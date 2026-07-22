@@ -432,6 +432,16 @@
   .ask-card h2 { font-family: var(--display); font-size: 16px; letter-spacing: .06em; text-transform: uppercase; margin: 0; }
   .ask-card p { font-size: 13.5px; line-height: 1.55; color: var(--muted); margin: 0; }
   .ask-actions { display: flex; gap: 9px; justify-content: flex-end; margin-top: 18px; }
+
+  .snaps { display: flex; flex-direction: column; gap: 7px; margin-top: 16px; max-height: 46vh; overflow-y: auto; }
+  .snap {
+    display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 11px;
+    padding: 9px 11px; background: var(--sunk); border: 1px solid var(--line); border-radius: 3px;
+  }
+  .snap-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .snap-reason { font-size: 13px; color: var(--text); }
+  .snap-meta { font-family: var(--mono); font-size: 11px; color: var(--faint); }
+  .snap-empty { font-size: 13px; color: var(--muted); margin-top: 16px; }
   .btn-solid {
     font-family: var(--body); font-size: 12.5px; font-weight: 600; color: #fff;
     background: var(--major); border: 1px solid var(--major); border-radius: 3px;
@@ -491,6 +501,7 @@
       <button class="btn" id="copyBtn" type="button">Copy results</button>
       <button class="btn" id="saveBtn" type="button">Save file</button>
       <button class="btn" id="loadBtn" type="button">Load file</button>
+      <button class="btn" id="restoreBtn" type="button" hidden title="Go back to how the event stood before a destructive action">Restore</button>
       <button class="btn btn-danger" id="resetBtn" type="button">New event</button>
       <input type="file" id="fileInput" accept="application/json,.json" hidden />
     </div>
@@ -601,6 +612,18 @@
 </div>
 
 <canvas id="confetti" hidden></canvas>
+
+<!-- Sits before the other two dialogs so a confirmation always paints on top of it. -->
+<div class="reveal" id="restore" hidden role="dialog" aria-modal="true" aria-labelledby="restoreTitle">
+  <div class="reveal-card ask-card">
+    <h2 id="restoreTitle">Restore a snapshot</h2>
+    <p>Each entry is the whole event as it stood immediately before that action. Restoring is snapshotted too, so you can walk back out of it.</p>
+    <div class="snaps" id="snapList"></div>
+    <div class="ask-actions">
+      <button class="btn" id="restoreClose" type="button">Close</button>
+    </div>
+  </div>
+</div>
 
 <div class="reveal" id="reveal" hidden role="dialog" aria-modal="true" aria-labelledby="revealName">
   <div class="reveal-card">
@@ -965,6 +988,7 @@
   /* A storage event only fires in OTHER tabs. Whichever tab did not make the
      change stands down instead of overwriting the one that did. */
   addEventListener('storage', e => {
+    if (e.key === RING_KEY) return renderRestore();   // another tab took a snapshot
     if (e.key !== KEY || readOnly) return;
     readOnly = true;
     $('rail').classList.add('locked');
@@ -997,6 +1021,173 @@
   const $ = id => document.getElementById(id);
   const canvas = $('wheel'), ctx = canvas.getContext('2d');
   const root = document.documentElement;
+
+  /* ---------- snapshot ring ----------
+     A confirmation stops the accidental click. It does nothing for the
+     deliberate click regretted ten seconds later, and `Reset the ladder` can
+     erase an evening of draws in one confirmed action. Every destructive path
+     now writes the state it is about to destroy here first.
+
+     Its own key, deliberately. The ring has to survive `New event` - the
+     action most worth undoing must not clear its own escape route - and it
+     has to stay out of `Save file`, which exports the event, not local
+     recovery. */
+  const RING_KEY = KEY + '.ring';
+  const RING_MAX = 10;
+
+  function ringRead() {
+    try {
+      const list = JSON.parse(localStorage.getItem(RING_KEY) || '[]');
+      return Array.isArray(list)
+        ? list.filter(e => e && typeof e === 'object' && e.state && typeof e.state === 'object')
+        : [];
+    } catch (e) { return []; }
+  }
+
+  function snapshot(reason) {
+    if (readOnly) return;                 // another tab owns this event
+    try {
+      const ring = ringRead();
+      ring.unshift({ at: Date.now(), reason, v: SCHEMA, state: JSON.parse(JSON.stringify(state)) });
+      /* localStorage is ~5MB for the whole origin. Drop the oldest rather
+         than let the write fail and take the newest entry down with it. */
+      let keep = ring.slice(0, RING_MAX);
+      for (;;) {
+        try { localStorage.setItem(RING_KEY, JSON.stringify(keep)); break; }
+        catch (e) {
+          if (keep.length <= 1) throw e;
+          keep = keep.slice(0, keep.length - 1);
+        }
+      }
+    } catch (e) { /* a failed snapshot must never block the action itself */ }
+    renderRestore();
+  }
+
+  function ago(ts) {
+    if (!Number.isFinite(ts)) return 'at an unknown time';
+    const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+    if (s < 45) return 'just now';
+    const m = Math.round(s / 60);
+    if (m < 60) return m + (m === 1 ? ' minute ago' : ' minutes ago');
+    const h = Math.round(m / 60);
+    if (h < 24) return h + (h === 1 ? ' hour ago' : ' hours ago');
+    const d = Math.round(h / 24);
+    return d + (d === 1 ? ' day ago' : ' days ago');
+  }
+
+  function snapSummary(s) {
+    const names = Array.isArray(s.roster) ? s.roster.length : 0;
+    const drawn = Object.values(s.results || {}).filter(r => r && r.winner).length;
+    return names + (names === 1 ? ' name' : ' names') + ', ' +
+           drawn + (drawn === 1 ? ' prize drawn' : ' prizes drawn');
+  }
+
+  const snapReason = e => (typeof e.reason === 'string' && e.reason.trim()) ? e.reason.trim() : 'Snapshot';
+
+  function renderRestore() {
+    const ring = ringRead();
+    $('restoreBtn').hidden = !ring.length;
+    if ($('restore').hidden) return;
+
+    const list = $('snapList');
+    list.innerHTML = '';
+    if (!ring.length) {
+      const p = document.createElement('p');
+      p.className = 'snap-empty';
+      p.textContent = 'Nothing to restore yet. A snapshot is taken before each destructive action.';
+      list.appendChild(p);
+      return;
+    }
+
+    ring.forEach((e, i) => {
+      const row = document.createElement('div');
+      row.className = 'snap';
+
+      const copy = document.createElement('div');
+      copy.className = 'snap-copy';
+      const reason = document.createElement('span');
+      reason.className = 'snap-reason';
+      reason.textContent = snapReason(e);
+      const meta = document.createElement('span');
+      meta.className = 'snap-meta';
+      meta.textContent = ago(e.at) + ' ' + DOT + ' ' + snapSummary(e.state);
+      copy.append(reason, meta);
+
+      const btn = document.createElement('button');
+      btn.className = 'btn'; btn.type = 'button'; btn.textContent = 'Restore';
+      btn.setAttribute('aria-label', 'Restore: ' + snapReason(e) + ', ' + ago(e.at));
+      btn.addEventListener('click', () => restoreSnapshot(i));
+
+      row.append(copy, btn);
+      list.appendChild(row);
+    });
+  }
+
+  async function restoreSnapshot(i) {
+    const entry = ringRead()[i];
+    if (!entry) return;
+
+    const ok = await ask('Restore this snapshot',
+      'Replaces the event on screen with how it stood ' + ago(entry.at) + ' (' + snapReason(entry) + ') \u2014 ' +
+      snapSummary(entry.state) + '. Where you are now is snapshotted first, so this is reversible too.',
+      'Restore');
+    if (!ok) return;
+
+    /* An entry can outlive the build that wrote it, so it goes through the
+       same migrate/sanitize path as a save or a backup file. */
+    let s = null;
+    try {
+      const raw = JSON.parse(JSON.stringify(entry.state));
+      if (Number.isFinite(entry.v)) raw.v = entry.v;
+      const upgraded = migrate(raw);
+      s = upgraded ? sanitize(upgraded) : null;
+    } catch (err) { s = null; }
+    if (!s) {
+      await ask('That snapshot could not be opened',
+        'It was not in a shape this build can read, so nothing was changed.', 'Got it');
+      return;
+    }
+
+    snapshot('Before restoring a snapshot');
+    const backup = JSON.parse(JSON.stringify(state));
+    try {
+      adopt(s);
+      /* adopt() keeps the current ladder rather than take an empty one, which
+         is right for a partial file and wrong here: an empty ladder is a state
+         the operator actually had. */
+      if (Array.isArray(s.milestones) && !s.milestones.length) {
+        state.milestones = [];
+        state.sel = 'mvp';
+      }
+      applyTheme();
+      render();
+      save();
+    } catch (err) {
+      adopt(backup);
+      render();
+      await ask('That snapshot could not be opened',
+        'It failed to render, so nothing was changed and your current event is untouched.', 'Got it');
+      return;
+    }
+    closeRestore();
+    $('live').textContent = 'Restored the event as it stood ' + ago(entry.at);
+  }
+
+  let focusBeforeRestore = null;
+  function openRestore() {
+    focusBeforeRestore = document.activeElement;
+    $('restore').hidden = false;
+    renderRestore();
+    $('restoreClose').focus();
+  }
+  function closeRestore() {
+    $('restore').hidden = true;
+    if (focusBeforeRestore && focusBeforeRestore.isConnected) focusBeforeRestore.focus();
+    focusBeforeRestore = null;
+  }
+  $('restoreBtn').addEventListener('click', openRestore);
+  $('restoreClose').addEventListener('click', closeRestore);
+  $('restore').addEventListener('click', e => { if (e.target === $('restore')) closeRestore(); });
 
   /* ---------- wheel drawing ---------- */
   let rotation = 0, spinning = false, cssSize = 0;
@@ -1220,6 +1411,7 @@
   }
 
   function doUndo() {
+    snapshot('Before undoing the ' + selLabel() + ' draw');
     delete state.results[state.sel];
     save();
     render();
@@ -1232,7 +1424,7 @@
     const ok = await ask('Undo the ' + selLabel() + ' draw',
       'This deletes ' + cur.winner + ' as the winner' +
       (passed.length ? ' and puts the ' + passed.length + ' who passed (' + passed.join(', ') + ') back on the wheel' : '') +
-      '. There is no way to bring the result back.',
+      '. A snapshot is taken first, so Restore can bring the result back.',
       'Undo draw');
     if (!ok) return;
     doUndo();
@@ -1302,7 +1494,9 @@
      dialogs claimed aria-modal without behaving modally. */
   function trapFocus(e) {
     if (e.key !== 'Tab') return;
-    const box = !$('ask').hidden ? $('ask') : (!$('reveal').hidden ? $('reveal') : null);
+    const box = !$('ask').hidden ? $('ask')
+              : !$('reveal').hidden ? $('reveal')
+              : !$('restore').hidden ? $('restore') : null;
     if (!box) return;
     const items = [...box.querySelectorAll('button:not([hidden])')].filter(b => b.offsetParent);
     if (!items.length) return;
@@ -1387,10 +1581,11 @@
         const ok = await ask('Delete ' + m.label,
           inIt || won
             ? 'This milestone has ' + inIt + ' participant(s)' + (won ? ' and a drawn winner' : '') +
-              '. Deleting it drops those ticks and that result.'
+              '. Deleting it drops those ticks and that result. A snapshot is taken first, so Restore can bring it back.'
             : 'Nobody is in this milestone yet, so nothing else changes.',
           'Delete');
         if (!ok) return;
+        snapshot('Before deleting the ' + m.label + ' milestone');
         state.milestones.splice(i, 1);
         delete state.results[m.id];
         state.roster.forEach(r => { delete r.in[m.id]; });
@@ -1433,9 +1628,10 @@
     reset.className = 'btn'; reset.type = 'button'; reset.textContent = 'Reset to 50K\u20131M ladder';
     reset.addEventListener('click', async () => {
       const ok = await ask('Reset the ladder',
-        'Restores the default 20 milestones (every 50K to 1M, majors at each 250K). Everyone currently ticked into a milestone loses those ticks.',
+        'Restores the default 20 milestones (every 50K to 1M, majors at each 250K). Everyone currently ticked into a milestone loses those ticks, and every winner drawn so far goes with them. A snapshot is taken first, so Restore can bring it all back.',
         'Reset ladder');
       if (!ok) return;
+      snapshot('Before resetting the ladder');
       state.milestones = defaultLadder();
       state.results = {};
       state.roster.forEach(r => { r.in = {}; });
@@ -1767,9 +1963,10 @@
         del.title = 'Remove from roster';
         del.addEventListener('click', async () => {
           const ok = await ask('Remove ' + r.name,
-            'Takes them out of the roster and every milestone they were ticked into. Prizes already drawn stay recorded.',
+            'Takes them out of the roster and every milestone they were ticked into. Prizes already drawn stay recorded. A snapshot is taken first, so Restore can bring them back.',
             'Remove');
           if (!ok) return;
+          snapshot('Before removing ' + r.name + ' from the roster');
           state.roster = state.roster.filter(x => x !== r);
           save(); render();
         });
@@ -2117,9 +2314,13 @@
     const drawn = Object.values(parsed.results || {}).filter(r => r && r.winner).length;
     const ok = await ask('Load this backup?',
       'Replaces everything on screen with "' + (parsed.eventName || 'Untitled') + '" \u2014 ' +
-      (parsed.roster.length) + ' in the roster, ' + drawn + ' prizes already drawn. Your current event is not saved anywhere else.',
+      (parsed.roster.length) + ' in the roster, ' + drawn + ' prizes already drawn. A snapshot of your current event is taken first, so Restore can bring it back.',
       'Load it');
     if (!ok) return;
+
+    /* Loading is the sixth one-way door: it replaces the whole event, and the
+       event it replaces is not saved anywhere else. */
+    snapshot('Before loading a backup file');
 
     // Prove it renders before it is allowed anywhere near storage.
     const backup = JSON.parse(JSON.stringify(state));
@@ -2138,9 +2339,10 @@
 
   $('resetBtn').addEventListener('click', async () => {
     const ok = await ask('Start a new event',
-      'Clears the roster, every milestone tick, every winner, and resets the skip rules. Your event name and grand-prize name are kept. Save a file first if you want this event back - there is no undo.',
+      'Clears the roster, every milestone tick, every winner, and resets the skip rules. Your event name and grand-prize name are kept. A snapshot is taken first, so Restore can bring this event back.',
       'Clear everything');
     if (!ok) return;
+    snapshot('Before starting a new event');
     state.roster = []; state.results = {};
     state.skipScope = { minor: false, major: false, mvp: false };
     state.milestones = defaultLadder();
@@ -2152,6 +2354,7 @@
     if (e.key === 'Escape') {
       if (!$('ask').hidden) return settleAsk(false);
       if (!$('reveal').hidden) return closeReveal();
+      if (!$('restore').hidden) return closeRestore();
     }
     const tag = e.target.tagName;
     if (e.code === 'Space' && !spinning && $('ask').hidden && tag !== 'TEXTAREA' && tag !== 'INPUT' && tag !== 'BUTTON') {
@@ -2171,6 +2374,7 @@
   load();
   applyTheme();
   render();
+  renderRestore();      // the ring outlives the event, so it is read at boot
   resize();
   requestAnimationFrame(resize);
 })();

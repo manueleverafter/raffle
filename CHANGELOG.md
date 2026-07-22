@@ -4,6 +4,45 @@ What changed, and why. Newest first.
 
 ---
 
+## A snapshot ring — the last one-way door closed
+
+The gap the hardening pass left open deliberately. Every destructive action was guarded by a confirmation
+that named what it would destroy, and that is where the protection stopped: once confirmed, the data was
+gone, and `Reset the ladder` could erase an evening of draws in a single click.
+
+The whole event is now snapshotted immediately before `Undo draw`, milestone delete, `Reset the ladder`,
+`New event`, a roster member delete, and — a sixth door the original notes did not list — `Load file`,
+which replaces the entire event with a backup. **Restore** appears in the masthead as soon as there is
+something to go back to, listing each entry by what was about to happen, how long ago, and what the event
+held at the time.
+
+Three details that decide whether this actually works:
+
+- **The ring has its own storage key.** It has to survive `New event` — otherwise the action most worth
+  undoing is the one that clears its own escape route — and it stays out of `Save file`, which exports the
+  event, not local recovery history.
+- **Restoring is snapshotted too**, so picking the wrong entry is not a second one-way door.
+- **A failed snapshot never blocks the action.** Writes are capped at ten entries and shed the oldest until
+  they fit rather than dropping the newest, and any remaining failure is swallowed — the operator asked for
+  the action, and the recovery aid must not veto it.
+
+Two traps turned up while wiring it in, both now written down in the README:
+
+- A `storage` event fires for **every** key on the origin, and the handler stands a tab down the moment it
+  sees one. Left unhandled, taking a snapshot in one tab would have frozen every other tab into read-only.
+- `adopt()` refuses an empty ladder, which is correct for a partial backup file and wrong for a snapshot —
+  a ladder emptied by deleting every milestone is a state the operator actually had, so the restore path
+  re-applies it.
+
+Every confirmation that used to end with *there is no undo* or *there is no way to bring the result back*
+now says what is actually true.
+
+Verified in a browser rather than reasoned about: a real draw was run, cleared with `New event`, and
+restored intact; all six paths were confirmed to record the right reason; the ring was pushed past its cap
+to watch the oldest entry drop; and the list was checked for surviving a reload.
+
+---
+
 ## Hardening pass
 
 Three audits of the whole file plus reproduction of every claim before fixing it. Grouped by what the work
@@ -98,7 +137,7 @@ load-bearing information.
 
 Destructive actions still have no undo history. A snapshot ring covering `Undo draw`, `New event`, milestone
 delete, ladder reset and roster member delete was the audit's top recommendation and was deliberately not
-built in this pass. Design notes are in the README under *Not built yet*.
+built in this pass. *(Closed in the pass above.)*
 
 ### Smaller
 
