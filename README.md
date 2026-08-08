@@ -66,11 +66,13 @@ paints the segments as a rainbow, the classic look. A single milestone can also 
 **Edit** — handy for making the big one feel different.
 
 Changes apply instantly, so you pick by eye. The choices live inside the event: `Save file` exports them,
-`Load file` restores them, and snapshots carry them. An uploaded wheel image covers the segments while it
-is shown — **Use colors** under the wheel switches back without deleting the picture, and **Use image**
-brings it back. The picker offers presets rather than a free color
+`Load file` restores them, and snapshots carry them. The picker offers presets rather than a free color
 wheel on purpose — every preset is calibrated so text stays readable on it in both themes, which an
 arbitrary color cannot promise.
+
+An uploaded wheel image covers the segments while it is shown. **Use colors** under the wheel switches
+back without deleting the picture, and **Use image** brings it back — so an event can run branded and
+switch to colors for the grand prize, or the other way around.
 
 ### Editing before you spin
 
@@ -165,7 +167,7 @@ backup is copied to your clipboard instead.
 | **Undo draw** | Clears the winner *and* the passes, so the milestone starts fresh |
 | **Put back** | Returns someone who passed to this milestone's wheel |
 | **Tick all / Untick all** | Bulk-ticks the roster for this milestone. Respects the filter |
-| **Edit** | Rename, re-tier, add or delete milestones; rename the grand prize |
+| **Edit** | Rename, re-tier, or recolor milestones, add or delete them; rename the grand prize |
 | **Theme** | Cycles Auto → Light → Dark. Auto follows your device |
 | **Colors** | Pick a color per tier, give one milestone its own, or paint the wheel prismatic. Travels with `Save file` |
 | **Fairness check** | 10,000 test draws against the current wheel |
@@ -237,9 +239,10 @@ the animation ending, a `visibilitychange`, or a guard timer.
 background, and the viewport and robots tags are injected at runtime — a `meta` in body is ignored, and the
 artifact host supplies its own document head.
 
-**Canvas does not restyle itself.** Colors are read at paint time, so a theme change triggers a redraw via
-a `MutationObserver` on `data-theme` plus a `prefers-color-scheme` listener. The canvas is also invisible to
-screen readers, so `draw()` maintains an `aria-label` naming who is on the wheel.
+**Canvas does not restyle itself.** Colors are read at paint time, so a theme change has to trigger a
+repaint: a `MutationObserver` on `data-theme` redraws, and the `prefers-color-scheme` listener re-renders —
+the full render, not just a redraw, because of the inlined-colors note below. The canvas is also invisible
+to screen readers, so `draw()` maintains an `aria-label` naming who is on the wheel.
 
 **Sandboxed frames block `confirm()` and `navigator.clipboard`.** Both fail silently. Confirmations go
 through `ask()`, and copying falls back to a hidden textarea.
@@ -292,7 +295,8 @@ black outline — because the background is whatever the operator picked.
 **The wheel image is capped before it touches state.** It rides inside the event, so it is written to
 localStorage, exported by `Save file`, and copied into all ten snapshots — a raw phone photo would blow the
 origin's ~5MB quota on its own. `setWheelImage()` centre-crops, downscales, and recompresses to a hard cap,
-and `sanitize()` drops anything oversized on the way back in.
+and `sanitize()` drops anything oversized on the way back in. Hidden is not deleted: `wheelImageOn` only
+gates the paint in `draw()`, so a switched-off image still costs its storage everywhere the event goes.
 
 **`reached()` is memoized per render pass.** It was recomputed once per roster row, which made a large
 roster lag while typing.
