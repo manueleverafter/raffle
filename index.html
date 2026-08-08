@@ -16,6 +16,10 @@
     --ring:    #DFE5EA;
 
     --tier:    var(--minor);
+    /* Ink for text sitting ON an accent background. Light-theme accents are
+       deep enough to carry white; dark-theme accents are pastel, so the same
+       white lands at ~2:1 and the ink flips to near-black instead. */
+    --on-accent: #fff;
     --shadow:  0 1px 2px rgba(16,34,46,.06), 0 8px 24px rgba(16,34,46,.07);
 
     --display: 'Archivo Black', 'Arial Black', 'Helvetica Neue', system-ui, sans-serif;
@@ -29,6 +33,7 @@
       --text:  #E6EDF2; --muted: #8CA0AE; --faint: #64798A;
       --minor: #63A5D4; --major: #F0685A; --mvp: #E0AC49; --ok: #4FBF85;
       --ring: #16232D;
+      --on-accent: #0D161D;
       --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
     }
   }
@@ -37,6 +42,7 @@
     --text:  #E6EDF2; --muted: #8CA0AE; --faint: #64798A;
     --minor: #63A5D4; --major: #F0685A; --mvp: #E0AC49; --ok: #4FBF85;
     --ring: #16232D;
+    --on-accent: #0D161D;
     --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
   }
   :root[data-theme="light"] {
@@ -44,6 +50,7 @@
     --text:  #16222B; --muted: #61727E; --faint: #5F7180;
     --minor: #2E6A96; --major: #C13B2F; --mvp: #9A6B12; --ok: #2E7D52;
     --ring: #DFE5EA;
+    --on-accent: #fff;
     --shadow: 0 1px 2px rgba(16,34,46,.06), 0 8px 24px rgba(16,34,46,.07);
   }
 
@@ -68,14 +75,14 @@
   /* ---------- alert bar ---------- */
   .alert {
     display: flex; align-items: center; gap: 12px;
-    background: var(--major); color: #fff;
+    background: var(--major); color: var(--on-accent);
     border-radius: 4px; padding: 12px 14px;
     box-shadow: var(--shadow);
   }
   .alert-mark {
     flex: none; width: 22px; height: 22px; border-radius: 50%;
     display: grid; place-items: center;
-    background: rgba(255,255,255,.22);
+    background: rgba(255,255,255,.28);
     font-family: var(--display); font-size: 13px;
   }
   .alert-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -86,7 +93,9 @@
   .alert-copy span { font-size: 13px; line-height: 1.45; }
   .alert .btn {
     margin-left: auto; flex: none;
-    background: #fff; color: var(--major); border-color: #fff; font-weight: 600;
+    /* The button background is fixed white, so its ink is the light-theme
+       major — the dark-theme major is too pale to read on white. */
+    background: #fff; color: #C13B2F; border-color: #fff; font-weight: 600;
   }
   .alert .btn:hover { background: #fff; filter: brightness(.94); }
 
@@ -167,7 +176,7 @@
   .stage-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; }
   .spin-btn {
     font-family: var(--display); font-weight: 900; font-size: 18px;
-    letter-spacing: .16em; text-transform: uppercase; color: #fff;
+    letter-spacing: .16em; text-transform: uppercase; color: var(--on-accent);
     background: var(--tier); border: none; border-radius: 3px;
     padding: 16px 54px; cursor: pointer;
     transition: transform .12s, filter .2s, background .3s;
@@ -238,7 +247,7 @@
     text-transform: uppercase; color: var(--mvp);
   }
   #editMsBtn { padding: 5px 11px; font-size: 11.5px; }
-  #editMsBtn[aria-pressed="true"] { background: var(--tier); border-color: var(--tier); color: #fff; }
+  #editMsBtn[aria-pressed="true"] { background: var(--tier); border-color: var(--tier); color: var(--on-accent); }
 
   /* ---------- participants ---------- */
   .roster-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -262,7 +271,7 @@
     border: 1.5px solid var(--faint); display: grid; place-items: center;
     font-size: 11px; line-height: 1; color: transparent;
   }
-  .r-toggle[aria-pressed="true"] .r-box { background: var(--tier); border-color: var(--tier); color: #fff; }
+  .r-toggle[aria-pressed="true"] .r-box { background: var(--tier); border-color: var(--tier); color: var(--on-accent); }
   .r-name { font-family: var(--mono); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .r-toggle[aria-pressed="false"] .r-name { color: var(--muted); }
   .r-tally { font-family: var(--mono); font-size: 10px; color: var(--faint); font-variant-numeric: tabular-nums; }
@@ -334,7 +343,7 @@
   .btn:hover:not(:disabled) { background: var(--sunk); border-color: var(--faint); }
   .btn:disabled { opacity: .4; cursor: not-allowed; }
   .btn-danger:hover:not(:disabled) { color: var(--major); border-color: var(--major); background: var(--panel); }
-  .btn-accent { background: var(--tier); border-color: var(--tier); color: #fff; }
+  .btn-accent { background: var(--tier); border-color: var(--tier); color: var(--on-accent); }
   .btn-accent:hover:not(:disabled) { filter: brightness(1.1); background: var(--tier); border-color: var(--tier); }
   .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
   .icon-btn {
@@ -403,10 +412,14 @@
   .fair-verdict strong { font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ok); font-family: var(--mono); }
   .fair-verdict span { color: var(--muted); }
 
-  /* ---------- overlays ---------- */
+  /* ---------- overlays ----------
+     The dialogs live outside .app, so they inherit the browser's defaults —
+     black serif — not the app's. Restate both here or the winner's name
+     paints near-black on the dark theme's panel. */
   .reveal {
     position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 24px;
     background: color-mix(in srgb, var(--paper) 88%, transparent); backdrop-filter: blur(7px);
+    color: var(--text); font-family: var(--body);
   }
   .reveal-card {
     position: relative; background: var(--panel); border: 1px solid var(--line);
@@ -443,7 +456,7 @@
   .snap-meta { font-family: var(--mono); font-size: 11px; color: var(--faint); }
   .snap-empty { font-size: 13px; color: var(--muted); margin-top: 16px; }
   .btn-solid {
-    font-family: var(--body); font-size: 12.5px; font-weight: 600; color: #fff;
+    font-family: var(--body); font-size: 12.5px; font-weight: 600; color: var(--on-accent);
     background: var(--major); border: 1px solid var(--major); border-radius: 3px;
     padding: 8px 15px; cursor: pointer;
   }
@@ -534,6 +547,8 @@
       <div class="stage-controls" id="spinControls">
         <button class="spin-btn" id="spinBtn" type="button">Spin</button>
         <button class="btn" id="shuffleBtn" type="button">Shuffle seats</button>
+        <button class="btn" id="wheelImgBtn" type="button" title="Paint a picture inside the wheel">Wheel image</button>
+        <input type="file" id="wheelImgInput" accept="image/*" hidden />
       </div>
       <p class="stage-meta" id="stageMeta"></p>
       <p class="sr-only" role="status" aria-live="polite" id="live"></p>
@@ -753,6 +768,7 @@
     results: {},             // <id|'mvp'> -> { winner, declined: [] }
     sel: 'm50',
     skipScope: { minor: false, major: false, mvp: false },
+    wheelImage: null,        // small data-URL painted inside the wheel, or null
   };
 
   let editingLadder = false;
@@ -909,6 +925,13 @@
 
     out.sel = (o.sel === 'mvp' || ids.has(o.sel)) ? o.sel
             : (out.milestones[0] ? out.milestones[0].id : 'mvp');
+
+    /* The wheel image travels inside the event, so it hits localStorage, the
+       ring, and Save file. Anything oversized or not a data-URL is dropped. */
+    if (typeof o.wheelImage === 'string' && /^data:image\//.test(o.wheelImage) &&
+        o.wheelImage.length <= 400000) {
+      out.wheelImage = o.wheelImage;
+    }
     return out;
   }
 
@@ -1015,6 +1038,9 @@
     }
     if (typeof s.sel === 'string') state.sel = s.sel;
     if (state.sel !== 'mvp' && !msById(state.sel)) state.sel = (state.milestones[0] || {}).id || 'mvp';
+    /* Absent means absent — a backup without an image replaces the event
+       without one, rather than keeping the old picture behind a new roster. */
+    state.wheelImage = (typeof s.wheelImage === 'string') ? s.wheelImage : null;
   }
 
   /* ---------- elements ---------- */
@@ -1189,6 +1215,50 @@
   $('restoreClose').addEventListener('click', closeRestore);
   $('restore').addEventListener('click', e => { if (e.target === $('restore')) closeRestore(); });
 
+  /* ---------- wheel image ----------
+     The picture rides inside the event state, so it is written to
+     localStorage, exported by Save file, and copied into all ten snapshots.
+     A phone photo stored raw would blow the origin's ~5MB quota on its own,
+     so it is centre-cropped square, downscaled, and recompressed until it
+     fits a hard cap before it ever touches state. */
+  const IMG_SIDE = 560, IMG_CAP = 250000;
+  function setWheelImage(file) {
+    if (!file || !/^image\//.test(file.type)) return;
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const c = document.createElement('canvas');
+      c.width = c.height = IMG_SIDE;
+      const g = c.getContext('2d');
+      const sc = Math.max(IMG_SIDE / img.naturalWidth, IMG_SIDE / img.naturalHeight);
+      const w = img.naturalWidth * sc, h = img.naturalHeight * sc;
+      g.drawImage(img, (IMG_SIDE - w) / 2, (IMG_SIDE - h) / 2, w, h);
+      let q = 0.85, data = c.toDataURL('image/jpeg', q);
+      while (data.length > IMG_CAP && q > 0.35) { q -= 0.1; data = c.toDataURL('image/jpeg', q); }
+      state.wheelImage = data;
+      save(); render();
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      ask('That image could not be read', 'Try a JPEG or PNG file.', 'Got it');
+    };
+    img.src = url;
+  }
+
+  /* Data-URL -> Image element, cached; draw() must never decode per frame. */
+  let photoEl = null, photoSrc = null;
+  function wheelPhoto() {
+    if (!state.wheelImage) { photoEl = photoSrc = null; return null; }
+    if (state.wheelImage !== photoSrc) {
+      photoSrc = state.wheelImage;
+      photoEl = new Image();
+      photoEl.onload = () => draw();
+      photoEl.src = photoSrc;
+    }
+    return (photoEl && photoEl.complete && photoEl.naturalWidth) ? photoEl : null;
+  }
+
   /* ---------- wheel drawing ---------- */
   let rotation = 0, spinning = false, cssSize = 0;
   const accent = () => getComputedStyle(root).getPropertyValue(cssVarFor(tierOf())).trim() || '#888';
@@ -1230,6 +1300,15 @@
     const bands = dark
       ? [shade(base, -0.42), shade(base, -0.16), shade(base, -0.62)]
       : [shade(base, 0.02), shade(base, 0.36), shade(base, 0.66)];
+    /* Light theme lifts two bands toward white, where a white label vanishes.
+       Each band picks its own ink from its own luminance. */
+    const inkFor = c => {
+      const m = c.match(/\d+/g).map(Number);
+      return (m[0] * 299 + m[1] * 587 + m[2] * 114) / 1000 > 150
+        ? { fill: 'rgba(13,22,29,.92)', shadow: 'rgba(255,255,255,.35)' }
+        : { fill: 'rgba(255,255,255,.96)', shadow: 'rgba(0,0,0,.3)' };
+    };
+    const inks = bands.map(inkFor);
     ctx.clearRect(0, 0, cssSize, cssSize);
 
     if (!names.length) {
@@ -1240,12 +1319,31 @@
       return;
     }
     const n = names.length, seg = (Math.PI * 2) / n;
+    const photo = wheelPhoto();
+    if (photo) {
+      /* The picture spins with the wheel: clip to the disc, rotate, cover. */
+      ctx.save();
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.clip();
+      ctx.translate(cx, cy); ctx.rotate(rotation);
+      ctx.drawImage(photo, -r, -r, r * 2, r * 2);
+      ctx.restore();
+    }
     for (let i = 0; i < n; i++) {
       const a0 = i * seg + rotation;
       ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, r, a0, a0 + seg); ctx.closePath();
-      ctx.fillStyle = n === 1 ? bands[0] : bands[i % 3];
-      ctx.fill();
-      if (n <= 40) { ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.lineWidth = 1; ctx.stroke(); }
+      if (!photo) {
+        ctx.fillStyle = n === 1 ? bands[0] : bands[i % 3];
+        ctx.fill();
+      }
+      if (n <= 40) {
+        if (photo) {
+          /* Separators must read on any photo: dark line with a light core. */
+          ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 2.5; ctx.stroke();
+          ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 1; ctx.stroke();
+        } else {
+          ctx.strokeStyle = dark ? 'rgba(255,255,255,.18)' : 'rgba(16,34,46,.14)'; ctx.lineWidth = 1; ctx.stroke();
+        }
+      }
     }
     if (seg * r > 15) {
       const size = Math.max(9, Math.min(24, seg * r * 0.5, cssSize / 17));
@@ -1257,8 +1355,21 @@
         ctx.save(); ctx.translate(cx, cy); ctx.rotate(mid);
         let text = names[i].toUpperCase();
         while (ctx.measureText(text).width > maxW && text.length > 2) text = text.slice(0, -2) + '\u2026';
-        ctx.fillStyle = 'rgba(255,255,255,.96)';
-        ctx.shadowColor = 'rgba(0,0,0,.3)'; ctx.shadowBlur = 2;
+        if (photo) {
+          /* Over a photo the ink is fixed: white with a black outline reads
+             on anything the operator can pick. Stroke first so the outline
+             sits behind the letterforms rather than eating into them. */
+          ctx.lineJoin = 'round';
+          ctx.lineWidth = Math.max(2, size / 6);
+          ctx.strokeStyle = 'rgba(0,0,0,.75)';
+          ctx.shadowBlur = 0;
+          ctx.strokeText(text, r - cssSize * 0.045, 0);
+          ctx.fillStyle = 'rgba(255,255,255,.98)';
+        } else {
+          const ink = inks[n === 1 ? 0 : i % 3];
+          ctx.fillStyle = ink.fill;
+          ctx.shadowColor = ink.shadow; ctx.shadowBlur = 2;
+        }
         ctx.fillText(text, r - cssSize * 0.045, 0);
         ctx.restore();
       }
@@ -2015,6 +2126,8 @@
 
     $('spinBtn').disabled = !names.length || spinning;
     $('shuffleBtn').disabled = names.length < 2 || spinning;
+    $('wheelImgBtn').textContent = state.wheelImage ? 'Remove image' : 'Wheel image';
+    $('wheelImgBtn').disabled = spinning;
     $('stageEmpty').hidden = names.length > 0 || settled;
 
     /* An empty wheel has several very different causes. Saying "add names"
@@ -2168,6 +2281,17 @@
   });
 
   $('spinBtn').addEventListener('click', spin);
+  $('wheelImgBtn').addEventListener('click', () => {
+    if (spinning) return;
+    if (state.wheelImage) { state.wheelImage = null; save(); render(); }
+    else $('wheelImgInput').click();
+  });
+  $('wheelImgInput').addEventListener('change', () => {
+    const f = $('wheelImgInput').files[0];
+    $('wheelImgInput').value = '';   // same file re-picked must fire again
+    if (f) setWheelImage(f);
+  });
+
   $('shuffleBtn').addEventListener('click', () => {
     if (spinning || pool().length < 2) return;
     currentWheel(true); draw();

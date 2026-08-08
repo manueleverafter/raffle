@@ -4,6 +4,48 @@ What changed, and why. Newest first.
 
 ---
 
+## A picture on the wheel
+
+Streams brand their wheels — the reference everyone knows puts an image inside the disc and writes the
+names over it. **Wheel image**, next to Shuffle seats, now does the same: the picture is clipped to the
+disc, spins with it, and the segment fills give way to thin dark-and-light separator lines that read on any
+photo. Names switch to a fixed ink — white with a black outline — because over an operator-chosen picture
+there is no palette to calibrate against. The button flips to **Remove image** while one is set.
+
+The constraint that shaped the feature is storage, not drawing. The image rides inside the event state, so
+it is written to localStorage, exported by `Save file`, restored by `Load file`, and copied into all ten
+snapshots — a raw phone photo would blow the origin's ~5MB quota by itself. So the picture is centre-cropped
+square, downscaled, and recompressed until it fits a hard cap before it ever touches state, and `sanitize()`
+refuses anything oversized coming back in from a file or a snapshot.
+
+Verified in a browser: an image added through the real file picker, drawn in both themes, spun to a winner,
+and removed again — with the stored event checked before and after.
+
+---
+
+## Ink that follows the theme
+
+The winner's name painted near-black on the dark theme's panel — the biggest text in the app, unreadable at
+its one moment of glory. The cause was structural: the three dialogs live outside `.app`, which is where the
+text colour and font live, so everything in them that didn't set its own colour fell back to the browser's
+default black serif. The confirmation dialogs had the same problem twice over — black titles on a dark
+panel, and body text quietly rendering in Times. `.reveal` now restates the colour and font, which fixes all
+three dialogs at once.
+
+Two more places were checked while the theme question was open, both real:
+
+- **White text on accent backgrounds.** The light theme's accents are deep enough to carry white; the dark
+  theme's are pastel, where the same white lands at roughly 2:1. A new `--on-accent` token flips the ink to
+  near-black in dark mode — Spin, accent buttons, ticked checkboxes, the alert bar, and Confirm all use it.
+- **Wheel labels in the light theme.** Two of the three segment bands are lightened toward white, and the
+  labels were always painted white — on the palest band that is about 1.6:1, close to invisible. Each band
+  now picks its own ink from its own luminance, so pale bands get dark text and dark bands keep white.
+
+Verified in a browser in both themes: a real draw run to the winner card in dark, the confirmation dialog
+opened in dark, and the wheel read in light with all ten names legible.
+
+---
+
 ## A snapshot ring — the last one-way door closed
 
 The gap the hardening pass left open deliberately. Every destructive action was guarded by a confirmation

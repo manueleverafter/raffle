@@ -146,6 +146,7 @@ backup is copied to your clipboard instead.
 | --- | --- |
 | **Spin** | Draws a winner for the selected milestone |
 | **Shuffle seats** | Rearranges the wheel. Cosmetic — the odds do not change |
+| **Wheel image** | Paints a picture inside the wheel; it spins with it. Names switch to white with a black outline so they read on any photo. The image is shrunk hard before storing and travels with `Save file` |
 | **Reroll** | Winner passed. Redraws, excluding them from this milestone only |
 | **Undo draw** | Clears the winner *and* the passes, so the milestone starts fresh |
 | **Put back** | Returns someone who passed to this milestone's wheel |
@@ -253,6 +254,21 @@ genuinely had. `restoreSnapshot()` re-applies that case by hand after calling `a
 
 **Colour tokens are calibrated per background.** `--line` is tuned for borders on panels; `--ring` exists
 because the same value has far more contrast on the darker page background.
+
+**The dialogs live outside `.app`,** which is where the text colour and font-family are set — so `.reveal`
+restates both. Without that, anything in a dialog that doesn't set its own colour inherits the browser's
+black serif, and the winner's name paints near-black on the dark theme's panel.
+
+**Text on an accent background uses `--on-accent`, never `#fff`.** Light-theme accents are deep enough to
+carry white; dark-theme accents are pastel, where white lands at ~2:1. The token flips per theme. Same idea
+on the canvas: wheel labels pick their ink per band from the band's luminance, because the light theme
+lightens two of the three bands toward white. Over a wheel image the ink is fixed instead — white with a
+black outline — because the background is whatever the operator picked.
+
+**The wheel image is capped before it touches state.** It rides inside the event, so it is written to
+localStorage, exported by `Save file`, and copied into all ten snapshots — a raw phone photo would blow the
+origin's ~5MB quota on its own. `setWheelImage()` centre-crops, downscales, and recompresses to a hard cap,
+and `sanitize()` drops anything oversized on the way back in.
 
 **`reached()` is memoized per render pass.** It was recomputed once per roster row, which made a large
 roster lag while typing.
