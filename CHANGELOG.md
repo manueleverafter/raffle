@@ -4,6 +4,23 @@ What changed, and why. Newest first.
 
 ---
 
+## The image became a choice, not a commitment
+
+With a picture on the wheel, the only way back to colors was deleting it — and re-uploading a picture
+mid-event to change your mind twice is not a real workflow. The image button now becomes a toggle once a
+picture is stored: **Use colors** hides it without deleting it, **Use image** paints it back, and a separate
+**Remove image** button does the actual deleting. The Colors dialog says so too, because picking segment
+colors while an image is covering them would otherwise look broken.
+
+The stored-but-hidden state rides inside the event like everything else — saved, exported, snapshotted —
+and an older backup that has never heard of the toggle loads with its image shown, exactly as it behaved
+when it was written.
+
+Verified in a browser: toggled both ways on a stored image, reloaded with the image off and found it still
+off — and still stored.
+
+---
+
 ## Colors you can pick
 
 Every event looked the same: blue minors, red majors, gold grand prize. Communities brand things, so

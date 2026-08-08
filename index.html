@@ -565,6 +565,7 @@
         <button class="spin-btn" id="spinBtn" type="button">Spin</button>
         <button class="btn" id="shuffleBtn" type="button">Shuffle seats</button>
         <button class="btn" id="wheelImgBtn" type="button" title="Paint a picture inside the wheel">Wheel image</button>
+        <button class="btn btn-danger" id="wheelImgRemoveBtn" type="button" hidden title="Delete the picture from the event">Remove image</button>
         <input type="file" id="wheelImgInput" accept="image/*" hidden />
       </div>
       <p class="stage-meta" id="stageMeta"></p>
@@ -827,6 +828,7 @@
     sel: 'm50',
     skipScope: { minor: false, major: false, mvp: false },
     wheelImage: null,        // small data-URL painted inside the wheel, or null
+    wheelImageOn: true,      // an image can be kept but switched off in favour of colors
     colors: { minor: 'blue', major: 'red', mvp: 'gold' },  // PALETTES keys, per tier
     wheelStyle: 'match',     // 'match' follows the milestone color; 'prismatic' is a rainbow
   };
@@ -996,6 +998,7 @@
         o.wheelImage.length <= 400000) {
       out.wheelImage = o.wheelImage;
     }
+    out.wheelImageOn = o.wheelImageOn !== false;   // absent means shown, as before the toggle
 
     out.colors = Object.assign({}, DEFAULT_COLORS);
     if (o.colors && typeof o.colors === 'object') {
@@ -1111,6 +1114,7 @@
     /* Absent means absent — a backup without an image replaces the event
        without one, rather than keeping the old picture behind a new roster. */
     state.wheelImage = (typeof s.wheelImage === 'string') ? s.wheelImage : null;
+    state.wheelImageOn = s.wheelImageOn !== false;
     state.colors = Object.assign({}, DEFAULT_COLORS);
     if (s.colors && typeof s.colors === 'object') {
       ['minor', 'major', 'mvp'].forEach(t => { if (PALETTES[s.colors[t]]) state.colors[t] = s.colors[t]; });
@@ -1312,6 +1316,7 @@
       let q = 0.85, data = c.toDataURL('image/jpeg', q);
       while (data.length > IMG_CAP && q > 0.35) { q -= 0.1; data = c.toDataURL('image/jpeg', q); }
       state.wheelImage = data;
+      state.wheelImageOn = true;    // uploading it means wanting to see it
       save(); render();
     };
     img.onerror = () => {
@@ -1400,7 +1405,7 @@
       return;
     }
     const n = names.length, seg = (Math.PI * 2) / n;
-    const photo = wheelPhoto();
+    const photo = state.wheelImageOn === false ? null : wheelPhoto();
     if (photo) {
       /* The picture spins with the wheel: clip to the disc, rotate, cover. */
       ctx.save();
@@ -2226,8 +2231,16 @@
 
     $('spinBtn').disabled = !names.length || spinning;
     $('shuffleBtn').disabled = names.length < 2 || spinning;
-    $('wheelImgBtn').textContent = state.wheelImage ? 'Remove image' : 'Wheel image';
+    /* With an image stored the main button becomes a show/hide toggle, so
+       switching back to colors does not cost the picture. */
+    $('wheelImgBtn').textContent = !state.wheelImage ? 'Wheel image'
+      : state.wheelImageOn ? 'Use colors' : 'Use image';
+    $('wheelImgBtn').title = !state.wheelImage ? 'Paint a picture inside the wheel'
+      : state.wheelImageOn ? 'Keep the picture, but paint the wheel with colors'
+      : 'Paint the stored picture inside the wheel again';
     $('wheelImgBtn').disabled = spinning;
+    $('wheelImgRemoveBtn').hidden = !state.wheelImage;
+    $('wheelImgRemoveBtn').disabled = spinning;
     $('stageEmpty').hidden = names.length > 0 || settled;
 
     /* An empty wheel has several very different causes. Saying "add names"
@@ -2439,7 +2452,9 @@
     });
     const hint = document.createElement('p');
     hint.className = 'hint';
-    hint.textContent = 'Prismatic paints the segments in a rainbow. Everything else keeps its tier color.';
+    hint.textContent = state.wheelImage && state.wheelImageOn
+      ? 'The uploaded image is covering the segments right now \u2014 press Use colors under the wheel to see these.'
+      : 'Prismatic paints the segments in a rainbow. Everything else keeps its tier color.';
     row.append(cap, wrap, hint);
     box.appendChild(row);
   }
@@ -2480,8 +2495,17 @@
   $('spinBtn').addEventListener('click', spin);
   $('wheelImgBtn').addEventListener('click', () => {
     if (spinning) return;
-    if (state.wheelImage) { state.wheelImage = null; save(); render(); }
-    else $('wheelImgInput').click();
+    if (state.wheelImage) {
+      state.wheelImageOn = !state.wheelImageOn;
+      save(); render();
+      $('live').textContent = state.wheelImageOn ? 'Wheel shows the image' : 'Wheel shows colors';
+    } else $('wheelImgInput').click();
+  });
+  $('wheelImgRemoveBtn').addEventListener('click', () => {
+    if (spinning || !state.wheelImage) return;
+    state.wheelImage = null;
+    save(); render();
+    $('live').textContent = 'Image removed';
   });
   $('wheelImgInput').addEventListener('change', () => {
     const f = $('wheelImgInput').files[0];

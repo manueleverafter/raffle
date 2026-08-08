@@ -66,7 +66,9 @@ paints the segments as a rainbow, the classic look. A single milestone can also 
 **Edit** — handy for making the big one feel different.
 
 Changes apply instantly, so you pick by eye. The choices live inside the event: `Save file` exports them,
-`Load file` restores them, and snapshots carry them. The picker offers presets rather than a free color
+`Load file` restores them, and snapshots carry them. An uploaded wheel image covers the segments while it
+is shown — **Use colors** under the wheel switches back without deleting the picture, and **Use image**
+brings it back. The picker offers presets rather than a free color
 wheel on purpose — every preset is calibrated so text stays readable on it in both themes, which an
 arbitrary color cannot promise.
 
@@ -158,7 +160,7 @@ backup is copied to your clipboard instead.
 | --- | --- |
 | **Spin** | Draws a winner for the selected milestone |
 | **Shuffle seats** | Rearranges the wheel. Cosmetic — the odds do not change |
-| **Wheel image** | Paints a picture inside the wheel; it spins with it. Names switch to white with a black outline so they read on any photo. The image is shrunk hard before storing and travels with `Save file` |
+| **Wheel image** | Paints a picture inside the wheel; it spins with it. Names switch to white with a black outline so they read on any photo. The image is shrunk hard before storing and travels with `Save file`. Once one is set the button becomes **Use colors / Use image** — the picture is kept, not deleted, so you can switch back and forth. **Remove image** deletes it |
 | **Reroll** | Winner passed. Redraws, excluding them from this milestone only |
 | **Undo draw** | Clears the winner *and* the passes, so the milestone starts fresh |
 | **Put back** | Returns someone who passed to this milestone's wheel |
