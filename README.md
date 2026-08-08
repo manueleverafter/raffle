@@ -58,6 +58,18 @@ Every destructive action confirms first and names what it will destroy. If you c
 change your mind, **Restore** puts the whole event back to how it stood immediately before — see
 [Getting something back](#getting-something-back).
 
+### Colors that match your event
+
+**Colors** in the masthead opens a picker: ten curated colors for each tier — minor, major, and the grand
+prize — plus a wheel style. *Match the milestone* shades the wheel from the milestone's color; *Prismatic*
+paints the segments as a rainbow, the classic look. A single milestone can also carry its own color, set in
+**Edit** — handy for making the big one feel different.
+
+Changes apply instantly, so you pick by eye. The choices live inside the event: `Save file` exports them,
+`Load file` restores them, and snapshots carry them. The picker offers presets rather than a free color
+wheel on purpose — every preset is calibrated so text stays readable on it in both themes, which an
+arbitrary color cannot promise.
+
 ### Editing before you spin
 
 Milestones are not fixed. Rename them, switch minor/major, add or delete, reset to the default ladder, or
@@ -153,6 +165,7 @@ backup is copied to your clipboard instead.
 | **Tick all / Untick all** | Bulk-ticks the roster for this milestone. Respects the filter |
 | **Edit** | Rename, re-tier, add or delete milestones; rename the grand prize |
 | **Theme** | Cycles Auto → Light → Dark. Auto follows your device |
+| **Colors** | Pick a color per tier, give one milestone its own, or paint the wheel prismatic. Travels with `Save file` |
 | **Fairness check** | 10,000 test draws against the current wheel |
 | **Copy results** | All winners as text, ready to paste into a chat |
 | **Save / Load file** | Export or restore the whole event as JSON |
@@ -254,6 +267,15 @@ genuinely had. `restoreSnapshot()` re-applies that case by hand after calling `a
 
 **Colour tokens are calibrated per background.** `--line` is tuned for borders on panels; `--ring` exists
 because the same value has far more contrast on the darker page background.
+
+**Color presets are curated pairs, not free hex.** Every light value is deep enough to carry white ink and
+every dark value is pastel enough to carry near-black — the assumption `--on-accent` is built on. A color
+picker would let an operator break that quietly; a preset cannot. Add presets by extending `PALETTES` with
+both halves of the pair.
+
+**Chosen colors are inlined on `:root`, so theme flips go through `render()`.** The stylesheet only flips
+the *default* tokens. `applyColors()` re-inlines the chosen preset per theme, and the ladder rows and result
+stubs inline per-milestone hexes directly — a theme change that only calls `draw()` leaves them all stale.
 
 **The dialogs live outside `.app`,** which is where the text colour and font-family are set — so `.reveal`
 restates both. Without that, anything in a dialog that doesn't set its own colour inherits the browser's

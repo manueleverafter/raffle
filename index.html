@@ -233,7 +233,7 @@
 
   /* ladder edit mode */
   .ms-edit-body { padding: 14px; display: flex; flex-direction: column; gap: 7px; }
-  .ms-edit { display: grid; grid-template-columns: 1fr 92px 28px; gap: 6px; align-items: center; }
+  .ms-edit { display: grid; grid-template-columns: 1fr 72px 84px 28px; gap: 6px; align-items: center; }
   .ms-edit input, .ms-edit select {
     font-family: var(--mono); font-size: 12px; color: var(--text);
     background: var(--sunk); border: 1px solid var(--line);
@@ -455,6 +455,22 @@
   .snap-reason { font-size: 13px; color: var(--text); }
   .snap-meta { font-family: var(--mono); font-size: 11px; color: var(--faint); }
   .snap-empty { font-size: 13px; color: var(--muted); margin-top: 16px; }
+
+  /* ---------- colors dialog ---------- */
+  .color-row { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+  .color-row > span {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+  .swatch {
+    width: 30px; height: 30px; border-radius: 50%; padding: 0;
+    border: 1px solid var(--line); cursor: pointer;
+    transition: transform .12s;
+  }
+  .swatch:hover { transform: scale(1.12); }
+  .swatch[aria-pressed="true"] { outline: 2.5px solid var(--text); outline-offset: 2px; }
+  .wheel-style { display: flex; gap: 8px; flex-wrap: wrap; }
   .btn-solid {
     font-family: var(--body); font-size: 12.5px; font-weight: 600; color: var(--on-accent);
     background: var(--major); border: 1px solid var(--major); border-radius: 3px;
@@ -511,6 +527,7 @@
     <span class="payout" id="payout"></span>
     <div class="masthead-end">
       <button class="btn" id="themeBtn" type="button" title="Switch between automatic, light, and dark">Theme: Auto</button>
+      <button class="btn" id="colorsBtn" type="button" title="Pick a color for each tier, or paint the wheel as a rainbow">Colors</button>
       <button class="btn" id="copyBtn" type="button">Copy results</button>
       <button class="btn" id="saveBtn" type="button">Save file</button>
       <button class="btn" id="loadBtn" type="button">Load file</button>
@@ -640,6 +657,19 @@
   </div>
 </div>
 
+<div class="reveal" id="colors" hidden role="dialog" aria-modal="true" aria-labelledby="colorsTitle">
+  <div class="reveal-card ask-card">
+    <h2 id="colorsTitle">Colors</h2>
+    <p>Pick a color for each tier &mdash; the wheel, buttons, and tags follow it everywhere. Colors are part of
+       the event, so <b>Save file</b> keeps them and <b>Load file</b> brings them back.</p>
+    <div id="colorRows"></div>
+    <div class="ask-actions">
+      <button class="btn" id="colorsReset" type="button" title="Blue minors, red majors, gold grand prize, plain wheel">Back to defaults</button>
+      <button class="btn btn-accent" id="colorsClose" type="button">Done</button>
+    </div>
+  </div>
+</div>
+
 <div class="reveal" id="reveal" hidden role="dialog" aria-modal="true" aria-labelledby="revealName">
   <div class="reveal-card">
     <p class="reveal-eyebrow" id="revealEyebrow"></p>
@@ -691,7 +721,7 @@
      changelog. */
   const KEY = 'draw.milestone';
   const LEGACY_KEYS = ['draw.milestone.v2'];
-  const SCHEMA = 3;
+  const SCHEMA = 4;
 
   const MIGRATIONS = {
     1: s => {                                    // single skip flag -> per tier
@@ -702,6 +732,11 @@
     },
     2: s => {                                    // grand prize became a row
       s.derived = [{ id: 'mvp', label: s.mvpLabel || 'MVP', rule: 'all-reached' }];
+      return s;
+    },
+    3: s => {                                    // colors ride inside the event
+      s.colors = { minor: 'blue', major: 'red', mvp: 'gold' };
+      s.wheelStyle = 'match';
       return s;
     },
   };
@@ -759,6 +794,29 @@
     return out;
   }
 
+  /* ---------- color presets ----------
+     Curated pairs rather than a free color picker, deliberately. Every light
+     value is deep enough to carry white ink and every dark value is pastel
+     enough to carry near-black, which is the assumption --on-accent is built
+     on. An arbitrary hex would break that quietly; a preset cannot. */
+  const PALETTES = {
+    blue:   { label: 'Blue',   light: '#2E6A96', dark: '#63A5D4' },
+    teal:   { label: 'Teal',   light: '#1F7A72', dark: '#4EC3B9' },
+    green:  { label: 'Green',  light: '#2E7D52', dark: '#4FBF85' },
+    gold:   { label: 'Gold',   light: '#9A6B12', dark: '#E0AC49' },
+    orange: { label: 'Orange', light: '#AC5218', dark: '#EF9457' },
+    red:    { label: 'Red',    light: '#C13B2F', dark: '#F0685A' },
+    pink:   { label: 'Pink',   light: '#AD3A6D', dark: '#EE7EB1' },
+    purple: { label: 'Purple', light: '#6D4FA3', dark: '#AB90E2' },
+    indigo: { label: 'Indigo', light: '#4956B0', dark: '#8E9BE9' },
+    slate:  { label: 'Slate',  light: '#51677A', dark: '#95ABBE' },
+  };
+  const DEFAULT_COLORS = { minor: 'blue', major: 'red', mvp: 'gold' };
+  /* The prismatic wheel: segments cycle these instead of shading one accent.
+     Same hues in both themes; each band already picks its own ink from its
+     own luminance, so legibility takes care of itself. */
+  const PRISM = ['#3D7DC0', '#37A26B', '#D9A33C', '#D95B4B', '#7E6BC9', '#2FA6A0', '#CE6BA4', '#DE7E3C'];
+
   const state = {
     eventName: 'Tap Tap Event',
     milestones: defaultLadder(),
@@ -769,6 +827,8 @@
     sel: 'm50',
     skipScope: { minor: false, major: false, mvp: false },
     wheelImage: null,        // small data-URL painted inside the wheel, or null
+    colors: { minor: 'blue', major: 'red', mvp: 'gold' },  // PALETTES keys, per tier
+    wheelStyle: 'match',     // 'match' follows the milestone color; 'prismatic' is a rainbow
   };
 
   let editingLadder = false;
@@ -885,11 +945,15 @@
 
     out.milestones = (Array.isArray(o.milestones) ? o.milestones : [])
       .filter(m => m && str(m.id) && str(m.label))
-      .map(m => ({
-        id: m.id.trim(),
-        label: m.label.trim(),
-        tier: m.tier === 'major' ? 'major' : 'minor',
-      }));
+      .map(m => {
+        const row = {
+          id: m.id.trim(),
+          label: m.label.trim(),
+          tier: m.tier === 'major' ? 'major' : 'minor',
+        };
+        if (PALETTES[m.color]) row.color = m.color;   // unknown preset -> auto
+        return row;
+      });
 
     const ids = new Set(out.milestones.map(m => m.id));
     out.roster = (Array.isArray(o.roster) ? o.roster : [])
@@ -932,6 +996,12 @@
         o.wheelImage.length <= 400000) {
       out.wheelImage = o.wheelImage;
     }
+
+    out.colors = Object.assign({}, DEFAULT_COLORS);
+    if (o.colors && typeof o.colors === 'object') {
+      ['minor', 'major', 'mvp'].forEach(t => { if (PALETTES[o.colors[t]]) out.colors[t] = o.colors[t]; });
+    }
+    out.wheelStyle = o.wheelStyle === 'prismatic' ? 'prismatic' : 'match';
     return out;
   }
 
@@ -1041,6 +1111,11 @@
     /* Absent means absent — a backup without an image replaces the event
        without one, rather than keeping the old picture behind a new roster. */
     state.wheelImage = (typeof s.wheelImage === 'string') ? s.wheelImage : null;
+    state.colors = Object.assign({}, DEFAULT_COLORS);
+    if (s.colors && typeof s.colors === 'object') {
+      ['minor', 'major', 'mvp'].forEach(t => { if (PALETTES[s.colors[t]]) state.colors[t] = s.colors[t]; });
+    }
+    state.wheelStyle = s.wheelStyle === 'prismatic' ? 'prismatic' : 'match';
   }
 
   /* ---------- elements ---------- */
@@ -1261,7 +1336,9 @@
 
   /* ---------- wheel drawing ---------- */
   let rotation = 0, spinning = false, cssSize = 0;
-  const accent = () => getComputedStyle(root).getPropertyValue(cssVarFor(tierOf())).trim() || '#888';
+  /* Read --tier rather than the tier token directly: a per-milestone color
+     override lands on --tier, and the canvas must follow it too. */
+  const accent = () => getComputedStyle(root).getPropertyValue('--tier').trim() || '#888';
   const isDark = () => {
     const t = root.getAttribute('data-theme');
     return t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
@@ -1297,9 +1374,13 @@
       : wheelName + ' wheel, nobody on it');
     const cx = cssSize / 2, cy = cssSize / 2, r = cssSize / 2 - 8;
     const base = accent(), dark = isDark();
-    const bands = dark
-      ? [shade(base, -0.42), shade(base, -0.16), shade(base, -0.62)]
-      : [shade(base, 0.02), shade(base, 0.36), shade(base, 0.66)];
+    /* Prismatic cycles fixed hues; match derives three bands from the accent.
+       Either way the per-band ink below keeps the labels readable. */
+    const bands = state.wheelStyle === 'prismatic'
+      ? PRISM.map(c => shade(c, 0))
+      : dark
+        ? [shade(base, -0.42), shade(base, -0.16), shade(base, -0.62)]
+        : [shade(base, 0.02), shade(base, 0.36), shade(base, 0.66)];
     /* Light theme lifts two bands toward white, where a white label vanishes.
        Each band picks its own ink from its own luminance. */
     const inkFor = c => {
@@ -1332,7 +1413,7 @@
       const a0 = i * seg + rotation;
       ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, r, a0, a0 + seg); ctx.closePath();
       if (!photo) {
-        ctx.fillStyle = n === 1 ? bands[0] : bands[i % 3];
+        ctx.fillStyle = n === 1 ? bands[0] : bands[i % bands.length];
         ctx.fill();
       }
       if (n <= 40) {
@@ -1366,7 +1447,7 @@
           ctx.strokeText(text, r - cssSize * 0.045, 0);
           ctx.fillStyle = 'rgba(255,255,255,.98)';
         } else {
-          const ink = inks[n === 1 ? 0 : i % 3];
+          const ink = inks[n === 1 ? 0 : i % bands.length];
           ctx.fillStyle = ink.fill;
           ctx.shadowColor = ink.shadow; ctx.shadowBlur = 2;
         }
@@ -1574,7 +1655,9 @@
     cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     cc.hidden = false;
     const base = accent();
-    const palette = [base, shade(base, 0.4), shade(base, -0.25), isDark() ? '#E6EDF2' : '#FFFFFF'];
+    const palette = state.wheelStyle === 'prismatic'
+      ? PRISM.map(c => shade(c, 0))
+      : [base, shade(base, 0.4), shade(base, -0.25), isDark() ? '#E6EDF2' : '#FFFFFF'];
     const bits = Array.from({ length: 90 }, () => ({
       x: innerWidth / 2 + (randomInt(140) - 70), y: innerHeight / 2,
       vx: (randomInt(1000) / 1000 - 0.5) * 15, vy: -9 - randomInt(13),
@@ -1607,7 +1690,8 @@
     if (e.key !== 'Tab') return;
     const box = !$('ask').hidden ? $('ask')
               : !$('reveal').hidden ? $('reveal')
-              : !$('restore').hidden ? $('restore') : null;
+              : !$('restore').hidden ? $('restore')
+              : !$('colors').hidden ? $('colors') : null;
     if (!box) return;
     const items = [...box.querySelectorAll('button:not([hidden])')].filter(b => b.offsetParent);
     if (!items.length) return;
@@ -1662,7 +1746,7 @@
 
     const note = document.createElement('p');
     note.className = 'hint';
-    note.textContent = 'Rename, re-price, or re-tier anything. Ticks follow the milestone even if you rename it.';
+    note.textContent = 'Rename, re-tier, or recolor anything. Ticks follow the milestone even if you rename it. Auto color follows the tier.';
     wrap.appendChild(note);
 
     state.milestones.forEach((m, i) => {
@@ -1681,6 +1765,22 @@
       });
       tier.setAttribute('aria-label', 'Tier');
       tier.addEventListener('change', () => { m.tier = tier.value; save(); render(); });
+
+      const col = document.createElement('select');
+      const auto = document.createElement('option');
+      auto.value = ''; auto.textContent = 'Auto';
+      col.appendChild(auto);
+      Object.keys(PALETTES).forEach(k => {
+        const o = document.createElement('option');
+        o.value = k; o.textContent = PALETTES[k].label; o.selected = m.color === k;
+        col.appendChild(o);
+      });
+      col.setAttribute('aria-label', 'Color for ' + m.label);
+      col.title = 'Color for this milestone only';
+      col.addEventListener('change', () => {
+        if (col.value) m.color = col.value; else delete m.color;
+        save(); render();
+      });
 
       const del = document.createElement('button');
       del.className = 'icon-btn'; del.type = 'button'; del.textContent = '\u00D7';
@@ -1704,7 +1804,7 @@
         save(); render();
       });
 
-      row.append(lab, tier, del);
+      row.append(lab, tier, col, del);
       wrap.appendChild(row);
     });
 
@@ -1768,7 +1868,7 @@
       btn.type = 'button';
       btn.className = 'ms';
       btn.setAttribute('aria-current', String(state.sel === m.id));
-      btn.style.setProperty('--mc', 'var(' + cssVarFor(m.tier) + ')');
+      btn.style.setProperty('--mc', presetHex(m.color) || 'var(' + cssVarFor(m.tier) + ')');
 
       const lbl = document.createElement('span');
       lbl.className = 'ms-label';
@@ -2195,7 +2295,7 @@
       const w = state.results[m.id].winner;
       const stub = document.createElement('div');
       stub.className = 'stub';
-      stub.style.setProperty('--sc', 'var(' + cssVarFor(m.tier) + ')');
+      stub.style.setProperty('--sc', presetHex(m.color) || 'var(' + cssVarFor(m.tier) + ')');
 
       const serial = document.createElement('span');
       serial.className = 'serial'; serial.textContent = m.label;
@@ -2228,9 +2328,23 @@
     });
   }
 
+  /* The chosen presets override the stylesheet tokens inline on :root, per
+     theme. Anything that inlines a hex (here, the ladder rows, the result
+     stubs) must be re-run when the theme flips — the stylesheet only flips
+     the defaults, so theme changes go through render(), not just draw(). */
+  const presetHex = k => { const p = PALETTES[k]; return p ? (isDark() ? p.dark : p.light) : null; };
+  function applyColors() {
+    ['minor', 'major', 'mvp'].forEach(t => {
+      root.style.setProperty(cssVarFor(t), presetHex((state.colors || {})[t]) || presetHex(DEFAULT_COLORS[t]));
+    });
+    const m = isMvp() ? null : msById(state.sel);
+    const ov = m && presetHex(m.color);
+    root.style.setProperty('--tier', ov || 'var(' + cssVarFor(tierOf()) + ')');
+  }
+
   function render() {
     reachedCache = null;
-    root.style.setProperty('--tier', 'var(' + cssVarFor(tierOf()) + ')');
+    applyColors();
     $('eventName').value = state.eventName;
     $('skipMvpLabel').textContent = state.mvpLabel || 'MVP';
     [['minor', 'skipMinor', 'noteMinor', 'minor wheels'],
@@ -2266,8 +2380,91 @@
     state.theme = THEMES[(THEMES.indexOf(state.theme) + 1) % THEMES.length];
     applyTheme();
     save();
-    draw();
+    /* Full render, not just draw: the chosen colors are inlined per theme. */
+    render();
     $('live').textContent = THEME_COPY[state.theme];
+  });
+
+  /* ---------- colors dialog ----------
+     Applies instantly — pick a swatch and the app repaints behind the
+     dialog — so the operator is choosing by eye, not by name. */
+  function renderColors() {
+    const box = $('colorRows');
+    box.innerHTML = '';
+
+    [['minor', 'Minor milestones'],
+     ['major', 'Major milestones'],
+     ['mvp', (state.mvpLabel || 'MVP') + ' \u2014 grand prize']].forEach(([t, label]) => {
+      const row = document.createElement('div');
+      row.className = 'color-row';
+      const cap = document.createElement('span');
+      cap.textContent = label;
+      const wrap = document.createElement('div');
+      wrap.className = 'swatches';
+      Object.keys(PALETTES).forEach(k => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'swatch';
+        b.style.background = presetHex(k);
+        b.title = PALETTES[k].label;
+        b.setAttribute('aria-label', label + ': ' + PALETTES[k].label);
+        b.setAttribute('aria-pressed', String(state.colors[t] === k));
+        b.addEventListener('click', () => {
+          state.colors[t] = k;
+          save(); render(); renderColors();
+          $('live').textContent = label + ' set to ' + PALETTES[k].label;
+        });
+        wrap.appendChild(b);
+      });
+      row.append(cap, wrap);
+      box.appendChild(row);
+    });
+
+    const row = document.createElement('div');
+    row.className = 'color-row';
+    const cap = document.createElement('span');
+    cap.textContent = 'Wheel style';
+    const wrap = document.createElement('div');
+    wrap.className = 'wheel-style';
+    [['match', 'Match the milestone'], ['prismatic', 'Prismatic \u2014 rainbow']].forEach(([v, label]) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn' + (state.wheelStyle === v ? ' btn-accent' : '');
+      b.setAttribute('aria-pressed', String(state.wheelStyle === v));
+      b.textContent = label;
+      b.addEventListener('click', () => {
+        state.wheelStyle = v;
+        save(); render(); renderColors();
+      });
+      wrap.appendChild(b);
+    });
+    const hint = document.createElement('p');
+    hint.className = 'hint';
+    hint.textContent = 'Prismatic paints the segments in a rainbow. Everything else keeps its tier color.';
+    row.append(cap, wrap, hint);
+    box.appendChild(row);
+  }
+
+  let focusBeforeColors = null;
+  function openColors() {
+    focusBeforeColors = document.activeElement;
+    renderColors();
+    $('colors').hidden = false;
+    $('colorsClose').focus();
+  }
+  function closeColors() {
+    $('colors').hidden = true;
+    if (focusBeforeColors && focusBeforeColors.isConnected) focusBeforeColors.focus();
+    focusBeforeColors = null;
+  }
+  $('colorsBtn').addEventListener('click', () => { if (!spinning) openColors(); });
+  $('colorsClose').addEventListener('click', closeColors);
+  $('colors').addEventListener('click', e => { if (e.target === $('colors')) closeColors(); });
+  $('colorsReset').addEventListener('click', () => {
+    state.colors = Object.assign({}, DEFAULT_COLORS);
+    state.wheelStyle = 'match';
+    state.milestones.forEach(m => { delete m.color; });
+    save(); render(); renderColors();
+    $('live').textContent = 'Colors back to defaults';
   });
 
   /* ---------- events ---------- */
@@ -2463,7 +2660,7 @@
 
   $('resetBtn').addEventListener('click', async () => {
     const ok = await ask('Start a new event',
-      'Clears the roster, every milestone tick, every winner, and resets the skip rules. Your event name and grand-prize name are kept. A snapshot is taken first, so Restore can bring this event back.',
+      'Clears the roster, every milestone tick, every winner, and resets the skip rules. Your event name, grand-prize name, and colors are kept. A snapshot is taken first, so Restore can bring this event back.',
       'Clear everything');
     if (!ok) return;
     snapshot('Before starting a new event');
@@ -2479,9 +2676,10 @@
       if (!$('ask').hidden) return settleAsk(false);
       if (!$('reveal').hidden) return closeReveal();
       if (!$('restore').hidden) return closeRestore();
+      if (!$('colors').hidden) return closeColors();
     }
     const tag = e.target.tagName;
-    if (e.code === 'Space' && !spinning && $('ask').hidden && tag !== 'TEXTAREA' && tag !== 'INPUT' && tag !== 'BUTTON') {
+    if (e.code === 'Space' && !spinning && $('ask').hidden && $('colors').hidden && tag !== 'TEXTAREA' && tag !== 'INPUT' && tag !== 'BUTTON') {
       e.preventDefault();
       if (!$('reveal').hidden) closeReveal();
       else if (!state.results[state.sel] || !state.results[state.sel].winner) spin();
@@ -2492,7 +2690,8 @@
     resize();
     if (!cc.hidden) { cc.width = innerWidth; cc.height = innerHeight; }
   });
-  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', draw);
+  /* Auto theme flipping with the device re-inlines the colors too. */
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => render());
   new MutationObserver(draw).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
 
   load();

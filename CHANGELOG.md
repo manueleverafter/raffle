@@ -4,6 +4,38 @@ What changed, and why. Newest first.
 
 ---
 
+## Colors you can pick
+
+Every event looked the same: blue minors, red majors, gold grand prize. Communities brand things, so
+**Colors** in the masthead now opens a picker — ten curated colors for each tier, a per-milestone override
+in **Edit** for making one draw feel different, and a wheel style toggle where *Prismatic* paints the
+segments as a rainbow, the look everyone knows from the reference wheel. Changes apply instantly, so the
+operator picks by eye rather than by name.
+
+Choices ride inside the event state, which buys the whole persistence story for free: `Save file` exports
+them, `Load file` restores them, all ten snapshots carry them, and an old backup without colors loads with
+the defaults via a schema bump (v4, append-only as always).
+
+Two decisions worth recording:
+
+- **Presets, not a color picker.** Every light value is deep enough to carry white text and every dark
+  value is pastel enough to carry near-black — the assumption `--on-accent` rests on. A free color wheel
+  would let one enthusiastic choice quietly break every button label; ten calibrated pairs cannot. The
+  prismatic segments lean on the existing per-band ink logic, which picks black or white text from each
+  band's own luminance.
+- **Chosen colors are inlined on `:root` per theme,** so a theme flip has to re-run the inlining — theme
+  changes now go through `render()`, not just `draw()`, or the ladder rows and result stubs keep the old
+  theme's hexes.
+
+One bug caught mid-build, and only because the page was open: the dialog labels used literal em-dashes in
+JS strings and rendered as mojibake — the exact charset trap the README already warns about. Escaped, like
+everything else.
+
+Verified in a browser: colors picked in both themes, a prismatic wheel spun to a winner on a teal-overridden
+milestone, and a v3 save (no colors) reloaded clean with defaults, roster and results intact.
+
+---
+
 ## A picture on the wheel
 
 Streams brand their wheels — the reference everyone knows puts an image inside the disc and writes the
