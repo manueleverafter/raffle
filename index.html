@@ -1,4 +1,4 @@
-<title>Draw &#8212; Milestone Raffle</title>
+<title>Raffle &#8212; Milestone Draws</title>
 <style>
   :root {
     --paper:   #EEF1F3;
@@ -522,7 +522,7 @@
   </div>
 
   <header class="masthead">
-    <h1 class="wordmark">Draw<span>.</span></h1>
+    <h1 class="wordmark">Raffle<span>.</span></h1>
     <input type="text" id="eventName" value="Tap Tap Event" aria-label="Event name" />
     <span class="payout" id="payout"></span>
     <div class="masthead-end">
@@ -1071,7 +1071,7 @@
       const upgraded = migrate(s);
       if (!upgraded) {
         showAlert('Saved by a newer version',
-          'This event was written by a newer build of Draw than the one you are running. Open the newer copy, or load an older backup.');
+          'This event was written by a newer build of Raffle than the one you are running. Open the newer copy, or load an older backup.');
         return;
       }
       adopt(sanitize(upgraded));
@@ -2609,7 +2609,7 @@
   $('saveBtn').addEventListener('click', async () => {
     const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
     const safe = (state.eventName || 'event').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') || 'event';
-    const name = 'draw-' + safe + '.json';
+    const name = 'raffle-' + safe + '.json';
     try {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -2642,7 +2642,7 @@
       return;
     }
     if (!parsed || !Array.isArray(parsed.roster)) {
-      await ask('Could not read that file', 'That JSON has no roster in it, so it is not a Draw backup.', 'Got it');
+      await ask('Could not read that file', 'That JSON has no roster in it, so it is not a Raffle backup.', 'Got it');
       return;
     }
 
@@ -2652,7 +2652,7 @@
     parsed = migrate(parsed);
     if (!parsed) {
       await ask('Saved by a newer version',
-        'That backup was written by a newer build of Draw than this one, so it cannot be opened safely here.', 'Got it');
+        'That backup was written by a newer build of Raffle than this one, so it cannot be opened safely here.', 'Got it');
       return;
     }
     parsed = sanitize(parsed);

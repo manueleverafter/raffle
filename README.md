@@ -1,4 +1,4 @@
-# Draw — Milestone Raffle
+# Raffle — Milestone Draws
 
 A raffle wheel for community events that run as a **ladder of milestones** rather than a single draw.
 
